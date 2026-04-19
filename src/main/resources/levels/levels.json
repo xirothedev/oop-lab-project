@@ -1,0 +1,45 @@
+[
+  {
+    "name": "Classic Warmup",
+    "rows": 8,
+    "cols": 8,
+    "moveLimit": 18,
+    "targetScore": 1500,
+    "goalType": "TARGET_SCORE",
+    "jellyCells": [],
+    "seed": 1001,
+    "palette": ["RED", "GREEN", "BLUE", "YELLOW", "ORANGE", "PURPLE"]
+  },
+  {
+    "name": "Jelly Drop",
+    "rows": 8,
+    "cols": 8,
+    "moveLimit": 20,
+    "targetScore": 0,
+    "goalType": "CLEAR_JELLY",
+    "jellyCells": [
+      {"row": 2, "col": 2},
+      {"row": 2, "col": 3},
+      {"row": 2, "col": 4},
+      {"row": 3, "col": 2},
+      {"row": 3, "col": 3},
+      {"row": 3, "col": 4},
+      {"row": 4, "col": 2},
+      {"row": 4, "col": 3},
+      {"row": 4, "col": 4}
+    ],
+    "seed": 2002,
+    "palette": ["RED", "GREEN", "BLUE", "YELLOW", "ORANGE", "PURPLE"]
+  },
+  {
+    "name": "Combo Rush",
+    "rows": 8,
+    "cols": 8,
+    "moveLimit": 16,
+    "targetScore": 2200,
+    "goalType": "TARGET_SCORE",
+    "jellyCells": [],
+    "seed": 3003,
+    "palette": ["RED", "GREEN", "BLUE", "YELLOW", "ORANGE", "PURPLE"]
+  }
+]
