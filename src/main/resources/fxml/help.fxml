@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+
+<BorderPane stylesheets="@/css/app.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.ooplab.candycrush.ui.HelpController">
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20"/>
+    </padding>
+    <top>
+        <Label styleClass="title" text="Rules and Controls"/>
+    </top>
+    <center>
+        <TextArea editable="false" prefHeight="340" wrapText="true" text="Swap two adjacent candies to form a match of at least three.&#10;&#10;Match 4 to create a striped candy. Match 5 to create a color bomb. Match T or L shapes to create a wrapped candy.&#10;&#10;Goal modes: reach the target score or clear all jelly before running out of moves.&#10;&#10;Special symbols: H = striped row, V = striped column, W = wrapped, B = color bomb."/>
+    </center>
+    <bottom>
+        <HBox alignment="CENTER_RIGHT">
+            <Button onAction="#handleBack" text="Back"/>
+        </HBox>
+    </bottom>
+</BorderPane>
+
