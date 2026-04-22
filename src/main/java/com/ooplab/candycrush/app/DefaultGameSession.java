@@ -7,11 +7,14 @@ import com.ooplab.candycrush.domain.LevelDefinition;
 import com.ooplab.candycrush.domain.Move;
 import com.ooplab.candycrush.domain.ResolutionResult;
 import com.ooplab.candycrush.engine.BoardGenerator;
+
+import java.util.Optional;
 import com.ooplab.candycrush.engine.CandySupplier;
 import com.ooplab.candycrush.engine.GoalEvaluator;
 import com.ooplab.candycrush.engine.GravityService;
 import com.ooplab.candycrush.engine.MatchDetector;
 import com.ooplab.candycrush.engine.MoveValidator;
+import com.ooplab.candycrush.engine.HintService;
 import com.ooplab.candycrush.engine.RandomCandySupplier;
 import com.ooplab.candycrush.engine.ResolutionEngine;
 import com.ooplab.candycrush.engine.SpecialCandyFactory;
@@ -20,9 +23,10 @@ public final class DefaultGameSession implements GameSession {
     private final MatchDetector matchDetector = new MatchDetector();
     private final MoveValidator moveValidator = new MoveValidator(matchDetector);
     private final GoalEvaluator goalEvaluator = new GoalEvaluator();
-    private final BoardGenerator boardGenerator = new BoardGenerator(matchDetector);
+    private final BoardGenerator boardGenerator = new BoardGenerator();
 
     private ResolutionEngine resolutionEngine;
+    private HintService hintService;
     private CandySupplier candySupplier;
     private LevelDefinition level;
     private Board board;
@@ -40,6 +44,7 @@ public final class DefaultGameSession implements GameSession {
                 candySupplier,
                 goalEvaluator
         );
+        this.hintService = new HintService(moveValidator);
         this.board = boardGenerator.createInitialBoard(levelDefinition, candySupplier);
         this.gameState = new GameState(0, levelDefinition.moveLimit(), GameStatus.RUNNING);
     }
@@ -72,6 +77,11 @@ public final class DefaultGameSession implements GameSession {
     @Override
     public LevelDefinition getLevel() {
         return level;
+    }
+
+    @Override
+    public Optional<Move> findHint() {
+        return hintService.findMove(board);
     }
 }
 

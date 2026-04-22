@@ -85,7 +85,7 @@ public final class Board {
         Board copy = new Board(rows, cols);
         for (Position position : positions()) {
             Candy candy = getCandy(position);
-            copy.setCandy(position, candy == null ? null : candy.copy());
+            copy.setCandy(position, candy);
             copy.setJelly(position, hasJelly(position));
         }
         return copy;

@@ -2,7 +2,6 @@ package com.ooplab.candycrush.ui.animation;
 
 import com.ooplab.candycrush.domain.Board;
 import com.ooplab.candycrush.domain.Candy;
-import com.ooplab.candycrush.domain.CandyColor;
 import com.ooplab.candycrush.domain.Position;
 
 import java.util.ArrayList;
@@ -20,7 +19,7 @@ public final class GravityMoveCalculator {
             for (int row = 0; row < before.rows(); row++) {
                 Candy candy = before.getCandy(new Position(row, col));
                 if (candy != null) {
-                    beforeCandies.add(new CandyInfo(candy.color(), candy.specialType(), row));
+                    beforeCandies.add(new CandyInfo(candy.id(), row));
                 }
             }
 
@@ -28,14 +27,14 @@ public final class GravityMoveCalculator {
             for (int row = 0; row < after.rows(); row++) {
                 Candy candy = after.getCandy(new Position(row, col));
                 if (candy != null) {
-                    afterCandies.add(new CandyInfo(candy.color(), candy.specialType(), row));
+                    afterCandies.add(new CandyInfo(candy.id(), row));
                 }
             }
 
             int[] usedBefore = new int[beforeCandies.size()];
             for (CandyInfo afterInfo : afterCandies) {
                 for (int i = 0; i < beforeCandies.size(); i++) {
-                    if (usedBefore[i] == 0 && beforeCandies.get(i).matches(afterInfo)) {
+                    if (usedBefore[i] == 0 && beforeCandies.get(i).id == afterInfo.id) {
                         usedBefore[i] = 1;
                         Position oldPos = new Position(beforeCandies.get(i).row, col);
                         Position newPos = new Position(afterInfo.row, col);
@@ -49,9 +48,6 @@ public final class GravityMoveCalculator {
         return moves;
     }
 
-    private record CandyInfo(CandyColor color, com.ooplab.candycrush.domain.SpecialType special, int row) {
-        boolean matches(CandyInfo other) {
-            return this.special == other.special && this.color == other.color;
-        }
+    private record CandyInfo(long id, int row) {
     }
 }

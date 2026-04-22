@@ -5,10 +5,8 @@ import com.ooplab.candycrush.domain.LevelDefinition;
 import com.ooplab.candycrush.domain.Position;
 
 public final class BoardGenerator {
-    private final MatchDetector matchDetector;
 
-    public BoardGenerator(MatchDetector matchDetector) {
-        this.matchDetector = matchDetector;
+    public BoardGenerator() {
     }
 
     public Board createInitialBoard(LevelDefinition levelDefinition, CandySupplier supplier) {
@@ -21,7 +19,7 @@ public final class BoardGenerator {
                 Position position = new Position(row, col);
                 do {
                     board.setCandy(position, supplier.nextCandy());
-                } while (!matchDetector.findMatches(board.copy()).isEmpty() && hasLocalMatch(board, position));
+                } while (hasLocalMatch(board, position));
             }
         }
         return board;

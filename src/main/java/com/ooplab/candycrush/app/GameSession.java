@@ -6,6 +6,8 @@ import com.ooplab.candycrush.domain.LevelDefinition;
 import com.ooplab.candycrush.domain.Move;
 import com.ooplab.candycrush.domain.ResolutionResult;
 
+import java.util.Optional;
+
 public interface GameSession {
     void start(LevelDefinition levelDefinition);
 
@@ -20,5 +22,7 @@ public interface GameSession {
     GameState getState();
 
     LevelDefinition getLevel();
+
+    Optional<Move> findHint();
 }
 

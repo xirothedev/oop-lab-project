@@ -1,6 +1,22 @@
 package com.ooplab.candycrush.domain;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public abstract class Candy {
+    private static final AtomicLong ID_COUNTER = new AtomicLong(1);
+    private final long id;
+
+    protected Candy() {
+        this.id = ID_COUNTER.getAndIncrement();
+    }
+
+    protected Candy(long id) {
+        this.id = id;
+    }
+
+    public long id() {
+        return id;
+    }
 
     public abstract CandyColor color();
 

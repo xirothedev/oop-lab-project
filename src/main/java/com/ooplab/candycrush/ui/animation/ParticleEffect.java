@@ -2,10 +2,12 @@ package com.ooplab.candycrush.ui.animation;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
+import javafx.animation.ParallelTransition;
 import javafx.animation.TranslateTransition;
 import javafx.scene.Node;
-import javafx.scene.shape.Circle;
+import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
@@ -20,7 +22,7 @@ public final class ParticleEffect {
     private static final double MAX_RADIUS = 5.0;
     private static final double TRAVEL_DISTANCE = 40.0;
 
-    public static List<Node> createExplosion(Color color, double centerX, double centerY) {
+    public static void createExplosion(Pane overlay, Color color, double centerX, double centerY) {
         List<Node> particles = new ArrayList<>();
         int count = ThreadLocalRandom.current().nextInt(MIN_PARTICLES, MAX_PARTICLES + 1);
         for (int i = 0; i < count; i++) {
@@ -46,9 +48,9 @@ public final class ParticleEffect {
             fade.setFromValue(1.0);
             fade.setToValue(0.0);
 
-            translate.play();
-            fade.play();
+            ParallelTransition pt = new ParallelTransition(translate, fade);
+            pt.setOnFinished(e -> overlay.getChildren().remove(particle));
+            pt.play();
         }
-        return particles;
     }
 }

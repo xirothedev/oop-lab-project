@@ -4,16 +4,15 @@ import com.ooplab.candycrush.domain.*;
 import javafx.animation.*;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
 import javafx.util.Duration;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 public final class AnimationService {
+    private static final Logger LOG = Logger.getLogger(AnimationService.class.getName());
     private final GridPane boardGrid;
     private final Pane overlayPane;
     private final CandyNodeManager nodeManager;
@@ -65,7 +64,7 @@ public final class AnimationService {
 
     private Animation buildAnimation(BoardEvent event, Board currentBefore, Board postSnapshot) {
         return switch (event.type()) {
-            case SWAP -> null; // handled by preview swap in GameController
+            case SWAP -> null;
             case CLEAR -> buildClearAnimation(event);
             case SPECIAL_SPAWN -> buildSpecialSpawnAnimation(event);
             case GRAVITY -> buildGravityAnimation(currentBefore, postSnapshot);
@@ -97,10 +96,8 @@ public final class AnimationService {
             return;
         }
 
-        double dx = AnimationConfig.CELL_STEP_PX;
-        double dy = AnimationConfig.CELL_STEP_PX;
-        double translateX = (to.col() - from.col()) * dy;
-        double translateY = (to.row() - from.row()) * dx;
+        double translateX = (to.col() - from.col()) * AnimationConfig.CELL_STEP_PX;
+        double translateY = (to.row() - from.row()) * AnimationConfig.CELL_STEP_PX;
 
         TranslateTransition t1 = new TranslateTransition(Duration.millis(AnimationConfig.SWAP_DURATION_MS), nodeFrom);
         t1.setToX(translateX);
@@ -196,6 +193,9 @@ public final class AnimationService {
             if (chain != null && chain >= 4) {
                 playBoardShake();
             }
+            if (chain != null && chain >= 2) {
+                playChainPopup(chain);
+            }
         });
         return clearAll;
     }
@@ -218,14 +218,21 @@ public final class AnimationService {
             int rowDiff = newPos.row() - oldPos.row();
             double pixelOffset = rowDiff * AnimationConfig.CELL_STEP_PX;
 
+            LOG.info(() -> String.format("Gravity: (%d,%d) -> (%d,%d) rows=%d px=%.0f duration=%.0fms",
+                    oldPos.row(), oldPos.col(), newPos.row(), newPos.col(), rowDiff, pixelOffset, gravityDuration(rowDiff)));
+
             node.setTranslateY(pixelOffset);
-            TranslateTransition fall = new TranslateTransition(Duration.millis(AnimationConfig.GRAVITY_DURATION_MS), node);
+            double duration = gravityDuration(rowDiff);
+            TranslateTransition fall = new TranslateTransition(Duration.millis(duration), node);
             fall.setToY(0);
             fall.setInterpolator(new BounceInterpolator());
 
             final Position oldP = oldPos;
             final Position newP = newPos;
-            fall.setOnFinished(e -> nodeManager.updatePosition(oldP, newP, node));
+            fall.setOnFinished(e -> {
+                LOG.info(() -> String.format("Gravity done: (%d,%d) -> (%d,%d)", oldP.row(), oldP.col(), newP.row(), newP.col()));
+                nodeManager.updatePosition(oldP, newP, node);
+            });
 
             fallAnims.add(fall);
         }
@@ -241,20 +248,25 @@ public final class AnimationService {
             return;
         }
 
+        LOG.info(() -> "Refill: " + newCandies.size() + " new candies");
         List<Animation> dropAnims = new ArrayList<>();
 
         for (Map.Entry<Position, Candy> entry : newCandies.entrySet()) {
             Position pos = entry.getKey();
             Candy candy = entry.getValue();
             StackPane cell = createCandyCell(candy);
-            cell.setTranslateY(-AnimationConfig.CELL_STEP_PX * (pos.row() + 1));
+            double startY = -(pos.row() + 1) * AnimationConfig.CELL_STEP_PX;
+            cell.setTranslateY(startY);
             cell.setOpacity(0);
 
-            TranslateTransition drop = new TranslateTransition(Duration.millis(AnimationConfig.REFILL_DURATION_MS), cell);
+            double duration = gravityDuration(pos.row() + 1);
+            LOG.info(() -> String.format("  Refill (%d,%d): startY=%.0f duration=%.0fms",
+                    pos.row(), pos.col(), startY, duration));
+            TranslateTransition drop = new TranslateTransition(Duration.millis(duration), cell);
             drop.setToY(0);
-            drop.setInterpolator(Interpolator.EASE_OUT);
+            drop.setInterpolator(new BounceInterpolator());
 
-            FadeTransition fadeIn = new FadeTransition(Duration.millis(AnimationConfig.REFILL_DURATION_MS / 2), cell);
+            FadeTransition fadeIn = new FadeTransition(Duration.millis(Math.min(150, duration / 2)), cell);
             fadeIn.setFromValue(0.0);
             fadeIn.setToValue(1.0);
 
@@ -305,7 +317,7 @@ public final class AnimationService {
 
         Label popup = new Label("+" + delta);
         popup.getStyleClass().add("score-popup");
-        popup.setTranslateX(boardGrid.getWidth() / 2 - 20);
+        popup.setTranslateX(boardGrid.getWidth() / 2 - 30);
         popup.setTranslateY(boardGrid.getHeight() / 2);
         popup.setOpacity(1.0);
         overlayPane.getChildren().add(popup);
@@ -321,6 +333,29 @@ public final class AnimationService {
         ParallelTransition parallel = new ParallelTransition(rise, fade);
         parallel.setOnFinished(e -> overlayPane.getChildren().remove(popup));
         return parallel;
+    }
+
+    /* ─── Chain Popup ─── */
+
+    private void playChainPopup(int chain) {
+        Label popup = new Label("x" + chain);
+        popup.getStyleClass().add("chain-popup");
+        popup.setTranslateX(boardGrid.getWidth() / 2 - 20);
+        popup.setTranslateY(boardGrid.getHeight() / 2 + 30);
+        popup.setOpacity(1.0);
+        overlayPane.getChildren().add(popup);
+
+        TranslateTransition rise = new TranslateTransition(Duration.millis(800), popup);
+        rise.setByY(-40);
+        rise.setInterpolator(Interpolator.EASE_OUT);
+
+        FadeTransition fade = new FadeTransition(Duration.millis(800), popup);
+        fade.setFromValue(1.0);
+        fade.setToValue(0.0);
+
+        ParallelTransition parallel = new ParallelTransition(rise, fade);
+        parallel.setOnFinished(e -> overlayPane.getChildren().remove(popup));
+        parallel.play();
     }
 
     /* ─── Board Shake ─── */
@@ -342,26 +377,58 @@ public final class AnimationService {
 
     /* ─── Helpers ─── */
 
+    private double gravityDuration(int rowDiff) {
+        double base = 120.0;
+        double perRow = 80.0;
+        return Math.min(base + rowDiff * perRow, 600.0);
+    }
+
     private StackPane createCandyCell(Candy candy) {
         StackPane cell = new StackPane();
         cell.getStyleClass().add("board-cell");
 
-        Circle circle = new Circle(22);
-        circle.setFill(colorOf(candy));
-        circle.setStroke(Color.rgb(255, 255, 255, 0.75));
-        circle.setStrokeWidth(2);
+        Region base = new Region();
+        base.setMinSize(40, 40);
+        base.setPrefSize(40, 40);
+        base.setMaxSize(40, 40);
+        base.setBackground(new javafx.scene.layout.Background(
+                new javafx.scene.layout.BackgroundFill(candyColor(candy),
+                        new javafx.scene.layout.CornerRadii(14), null)));
+        cell.getChildren().add(base);
 
-        Label label = new Label(symbolOf(candy));
-        label.getStyleClass().add("candy-symbol");
+        if (candy.specialType() == SpecialType.STRIPED_ROW) {
+            Region stripe = new Region();
+            stripe.setMinSize(36, 3);
+            stripe.setBackground(new javafx.scene.layout.Background(
+                    new javafx.scene.layout.BackgroundFill(Color.web("rgba(255,255,255,0.65)"),
+                            new javafx.scene.layout.CornerRadii(2), null)));
+            cell.getChildren().add(stripe);
+        } else if (candy.specialType() == SpecialType.STRIPED_COLUMN) {
+            Region stripe = new Region();
+            stripe.setMinSize(3, 36);
+            stripe.setBackground(new javafx.scene.layout.Background(
+                    new javafx.scene.layout.BackgroundFill(Color.web("rgba(255,255,255,0.65)"),
+                            new javafx.scene.layout.CornerRadii(2), null)));
+            cell.getChildren().add(stripe);
+        } else if (candy.specialType() == SpecialType.WRAPPED) {
+            Region border = new Region();
+            border.setMinSize(40, 40);
+            border.setBorder(new Border(
+                    new BorderStroke(Color.web("#ffd43b"),
+                            BorderStrokeStyle.SOLID,
+                            new CornerRadii(14),
+                            new BorderWidths(3))));
+            cell.getChildren().add(border);
+        }
 
-        cell.getChildren().addAll(circle, label);
         return cell;
     }
 
-    private Color colorOf(Candy candy) {
-        if (candy == null || candy.specialType() == SpecialType.COLOR_BOMB) {
+    private Color candyColor(Candy candy) {
+        if (candy.specialType() == SpecialType.COLOR_BOMB) {
             return Color.web("#2d3436");
         }
+        if (candy.color() == null) return Color.web("#636e72");
         return switch (candy.color()) {
             case RED -> Color.web("#ff6b6b");
             case GREEN -> Color.web("#51cf66");
@@ -369,17 +436,6 @@ public final class AnimationService {
             case YELLOW -> Color.web("#ffd43b");
             case ORANGE -> Color.web("#ffa94d");
             case PURPLE -> Color.web("#b197fc");
-        };
-    }
-
-    private String symbolOf(Candy candy) {
-        if (candy == null) return "";
-        return switch (candy.specialType()) {
-            case STRIPED_ROW -> "H";
-            case STRIPED_COLUMN -> "V";
-            case WRAPPED -> "W";
-            case COLOR_BOMB -> "B";
-            case NONE -> "";
         };
     }
 }

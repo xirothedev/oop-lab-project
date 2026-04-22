@@ -9,6 +9,7 @@ import com.ooplab.candycrush.domain.GameState;
 import com.ooplab.candycrush.domain.GameStatus;
 import com.ooplab.candycrush.domain.LevelDefinition;
 import com.ooplab.candycrush.domain.MatchGroup;
+import com.ooplab.candycrush.domain.MatchPattern;
 import com.ooplab.candycrush.domain.Move;
 import com.ooplab.candycrush.domain.Position;
 import com.ooplab.candycrush.domain.ResolutionResult;
@@ -28,6 +29,7 @@ public final class ResolutionEngine {
     private final GravityService gravityService;
     private final CandySupplier candySupplier;
     private final GoalEvaluator goalEvaluator;
+    private final HintService hintService;
 
     public ResolutionEngine(
             MoveValidator moveValidator,
@@ -43,6 +45,7 @@ public final class ResolutionEngine {
         this.gravityService = gravityService;
         this.candySupplier = candySupplier;
         this.goalEvaluator = goalEvaluator;
+        this.hintService = new HintService(moveValidator);
     }
 
     public ResolutionResult applyMove(Board board, Move move, GameState state, LevelDefinition level) {
@@ -70,8 +73,10 @@ public final class ResolutionEngine {
 
             Set<Position> clearPositions = new HashSet<>();
             Map<Position, Candy> spawnedSpecials = new HashMap<>();
+            int matchBaseScore = 0;
             for (MatchGroup group : matches) {
                 clearPositions.addAll(group.positions());
+                matchBaseScore += scoreForPattern(group.pattern());
                 SpecialCandyFactory.SpawnedSpecial spawned = specialCandyFactory.create(group, move);
                 if (spawned != null) {
                     spawnedSpecials.put(spawned.position(), spawned.candy());
@@ -83,9 +88,10 @@ public final class ResolutionEngine {
                 }
             }
 
-            expandSpecialEffects(board, clearPositions);
+            expandSpecialEffects(board, clearPositions, clearPositions);
             clearPositions.removeAll(spawnedSpecials.keySet());
-            totalScore += clear(board, clearPositions, chain, events);
+            int clearedCount = clear(board, clearPositions, chain, events);
+            totalScore += matchBaseScore * chain + clearedCount * 10 * chain;
 
             for (Map.Entry<Position, Candy> entry : spawnedSpecials.entrySet()) {
                 board.setCandy(entry.getKey(), entry.getValue());
@@ -104,6 +110,8 @@ public final class ResolutionEngine {
         events.add(new BoardEvent(BoardEventType.GOAL_PROGRESS, Map.of("remainingJelly", board.jellyCount(), "movesLeft", state.movesLeft())));
         if (endState == GameStatus.WON || endState == GameStatus.LOST) {
             events.add(new BoardEvent(BoardEventType.GAME_END, Map.of("status", endState)));
+        } else if (hintService.findMove(board).isEmpty()) {
+            events.add(new BoardEvent(BoardEventType.NO_MOVES, Map.of("status", "no_valid_moves")));
         }
         return new ResolutionResult(true, totalScore, state.movesLeft(), matchDetector.findMatches(board).isEmpty(), events, endState);
     }
@@ -141,7 +149,7 @@ public final class ResolutionEngine {
         return clear(board, clearPositions, 1, events);
     }
 
-    private void expandSpecialEffects(Board board, Set<Position> clearPositions) {
+    private void expandSpecialEffects(Board board, Set<Position> clearPositions, Set<Position> activatedPositions) {
         boolean expanded;
         do {
             expanded = false;
@@ -165,8 +173,10 @@ public final class ResolutionEngine {
                     }
                     case WRAPPED -> addWrappedArea(additions, position, board);
                     case COLOR_BOMB -> {
-                        for (Position cell : board.positions()) {
-                            additions.add(cell);
+                        if (activatedPositions.contains(position)) {
+                            for (Position cell : board.positions()) {
+                                additions.add(cell);
+                            }
                         }
                     }
                     default -> {
@@ -197,13 +207,11 @@ public final class ResolutionEngine {
     }
 
     private void refill(Board board) {
-        int added = 0;
         for (int row = 0; row < board.rows(); row++) {
             for (int col = 0; col < board.cols(); col++) {
                 Position position = new Position(row, col);
                 if (board.getCandy(position) == null) {
                     board.setCandy(position, candySupplier.nextCandy());
-                    added++;
                 }
             }
         }
@@ -227,5 +235,14 @@ public final class ResolutionEngine {
         for (int row = 0; row < board.rows(); row++) {
             positions.add(new Position(row, pivot.col()));
         }
+    }
+
+    private int scoreForPattern(MatchPattern pattern) {
+        return switch (pattern) {
+            case LINE_THREE -> 60;
+            case LINE_FOUR -> 120;
+            case LINE_FIVE -> 200;
+            case T_OR_L -> 150;
+        };
     }
 }

@@ -27,7 +27,7 @@ class ResolutionEngineTest {
                 "YOBP",
                 "OPYP"
         );
-        LevelDefinition level = LevelDefinition.targetScore("Demo", 4, 4, 10, 250, 123L);
+        LevelDefinition level = LevelDefinition.targetScore("Demo", 4, 4, 10, 5000, 123L);
         GameState state = new GameState(0, 10, GameStatus.RUNNING);
         SequenceCandySupplier supplier = new SequenceCandySupplier(
                 CandyColor.YELLOW,

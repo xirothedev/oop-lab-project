@@ -1,58 +1,82 @@
 package com.ooplab.candycrush.ui;
 
 import com.ooplab.candycrush.domain.LevelDefinition;
-import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 
 import java.util.List;
 
 public final class LevelSelectController extends BaseController {
     @FXML
-    private ListView<LevelDefinition> levelList;
+    private VBox levelCardContainer;
     @FXML
-    private Label levelSummary;
+    private Button playButton;
+
+    private LevelDefinition selectedLevel;
 
     @Override
     protected void onRouterReady() {
-        levelList.setCellFactory(list -> new ListCell<>() {
-            @Override
-            protected void updateItem(LevelDefinition item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.name());
-            }
-        });
-        levelList.getSelectionModel().selectedItemProperty().addListener((obs, oldLevel, newLevel) -> updateSummary(newLevel));
     }
 
     public void loadLevels() {
+        levelCardContainer.getChildren().clear();
         List<LevelDefinition> levels = router().context().levelRepository().loadLevels();
-        levelList.setItems(FXCollections.observableArrayList(levels));
+
+        int index = 0;
+        for (LevelDefinition level : levels) {
+            index++;
+            StackPane card = createLevelCard(level, index);
+            levelCardContainer.getChildren().add(card);
+        }
+
         if (!levels.isEmpty()) {
-            levelList.getSelectionModel().selectFirst();
+            selectLevel(levels.getFirst());
         }
     }
 
-    private void updateSummary(LevelDefinition level) {
-        if (level == null) {
-            levelSummary.setText("Select a level to see its goal.");
-            return;
+    private StackPane createLevelCard(LevelDefinition level, int number) {
+        VBox card = new VBox(6);
+        card.getStyleClass().add("level-card");
+        card.setUserData(level);
+
+        Label name = new Label(number + ". " + level.name());
+        name.getStyleClass().add("level-card-name");
+
+        String goalText = level.goalType().name().replace("_", " ").toLowerCase();
+        String detail = level.goalType() == com.ooplab.candycrush.domain.GoalType.TARGET_SCORE
+                ? goalText + ": " + level.targetScore()
+                : goalText + " (" + level.jellyCells().size() + " cells)";
+
+        Label detailLabel = new Label(detail + " · " + level.moveLimit() + " moves");
+        detailLabel.getStyleClass().add("level-card-detail");
+
+        card.getChildren().addAll(name, detailLabel);
+
+        card.setOnMouseClicked(e -> selectLevel(level));
+
+        return new StackPane(card);
+    }
+
+    private void selectLevel(LevelDefinition level) {
+        selectedLevel = level;
+        for (var node : levelCardContainer.getChildren()) {
+            if (node instanceof StackPane wrapper && wrapper.getChildren().getFirst() instanceof VBox card) {
+                if (card.getUserData() == level) {
+                    card.getStyleClass().add("selected");
+                } else {
+                    card.getStyleClass().remove("selected");
+                }
+            }
         }
-        levelSummary.setText(
-                "Goal: " + level.goalType() +
-                        "\nMoves: " + level.moveLimit() +
-                        "\nTarget score: " + level.targetScore() +
-                        "\nJelly cells: " + level.jellyCells().size()
-        );
     }
 
     @FXML
     private void handleStart() {
-        LevelDefinition selected = levelList.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            router().showGame(selected);
+        if (selectedLevel != null) {
+            router().showGame(selectedLevel);
         }
     }
 
@@ -61,4 +85,3 @@ public final class LevelSelectController extends BaseController {
         router().showHome();
     }
 }
-

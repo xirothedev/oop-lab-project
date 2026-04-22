@@ -8,6 +8,9 @@ public enum BoardEventType {
     REFILL,
     SCORE,
     GOAL_PROGRESS,
-    GAME_END
+    GAME_END,
+    NO_MOVES,
+    SHUFFLE,
+    HINT
 }
 
