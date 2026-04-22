@@ -88,8 +88,10 @@ public class Board {
 
     /**
      * Apply gravity: candies fall down to fill empty spaces below them.
+     * Returns a map of Cell -> rows dropped for animation purposes.
      */
-    public void applyGravity() {
+    public java.util.Map<Cell, Integer> applyGravity() {
+        java.util.Map<Cell, Integer> drops = new java.util.HashMap<>();
         for (int c = 0; c < SIZE; c++) {
             int writeRow = SIZE - 1;
             for (int r = SIZE - 1; r >= 0; r--) {
@@ -97,11 +99,13 @@ public class Board {
                     if (r != writeRow) {
                         grid[writeRow][c].setCandy(grid[r][c].getCandy());
                         grid[r][c].clear();
+                        drops.put(grid[writeRow][c], writeRow - r);
                     }
                     writeRow--;
                 }
             }
         }
+        return drops;
     }
 
     /**

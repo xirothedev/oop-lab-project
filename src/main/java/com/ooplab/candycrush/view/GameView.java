@@ -14,6 +14,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -33,6 +35,11 @@ public class GameView {
 
     // Track selected cell highlight
     private Rectangle selectedHighlight;
+
+    // Map Cell -> StackPane for animation targeting
+    private final Map<Cell, StackPane> cellMap = new HashMap<>();
+
+    private boolean isAnimating = false;
 
     public GameView(Stage stage) {
         this.stage = stage;
@@ -91,6 +98,7 @@ public class GameView {
      */
     public void renderBoard(Board board, Consumer<Cell> onCellClick) {
         boardGrid.getChildren().clear();
+        cellMap.clear();
         selectedHighlight = null;
 
         for (int r = 0; r < Board.SIZE; r++) {
@@ -100,6 +108,7 @@ public class GameView {
                 pane.setOnMouseClicked(e -> onCellClick.accept(cell));
                 pane.setUserData(cell);
                 boardGrid.add(pane, c, r);
+                cellMap.put(cell, pane);
             }
         }
     }
@@ -142,6 +151,10 @@ public class GameView {
             // Remove highlight rectangle if present
             pane.getChildren().removeIf(n -> n instanceof Rectangle r && r.getStroke() == Color.GOLD && r.getStrokeWidth() == 3);
         });
+
+        if (cell == null) {
+            return;
+        }
 
         // Add highlight to new selection
         for (javafx.scene.Node node : boardGrid.getChildren()) {
@@ -207,5 +220,38 @@ public class GameView {
 
     public Stage getStage() {
         return stage;
+    }
+
+    /**
+     * Get the StackPane for a given cell.
+     */
+    public StackPane getCellPane(Cell cell) {
+        return cellMap.get(cell);
+    }
+
+    /**
+     * Get the underlying GridPane.
+     */
+    public GridPane getBoardGrid() {
+        return boardGrid;
+    }
+
+    /**
+     * Clear the current cell selection highlight.
+     */
+    public void clearSelection() {
+        highlightCell(null);
+    }
+
+    /**
+     * Mark whether animations are in progress (disables input).
+     */
+    public void setAnimating(boolean animating) {
+        this.isAnimating = animating;
+        boardGrid.setDisable(animating);
+    }
+
+    public boolean isAnimating() {
+        return isAnimating;
     }
 }

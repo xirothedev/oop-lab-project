@@ -1,27 +1,39 @@
 package com.ooplab.candycrush.controller;
 
 import com.ooplab.candycrush.model.*;
+import com.ooplab.candycrush.util.AnimationManager;
 import com.ooplab.candycrush.view.GameView;
+import javafx.scene.layout.StackPane;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Controller: handles player input, coordinates game logic between model and view.
- * Manages the full game flow: swap → match check → gravity → cascade → score → game over.
+ * Manages the full game flow with animations: swap → match check → gravity → cascade → score → game over.
  */
 public class GameController {
     private final Board board;
     private final ScoreManager scoreManager;
     private final GameView view;
+    private final AnimationManager animationManager;
 
     private GameState state;
     private final GameState playingState;
     private final GameState gameOverState;
 
     private Cell selectedCell;
+    private final AtomicBoolean isAnimating = new AtomicBoolean(false);
 
     public GameController(Board board, ScoreManager scoreManager, GameView view) {
         this.board = board;
         this.scoreManager = scoreManager;
         this.view = view;
+        this.animationManager = new AnimationManager();
 
         this.playingState = new PlayingState();
         this.gameOverState = new GameOverState();
@@ -32,17 +44,9 @@ public class GameController {
         setupBindings();
     }
 
-    /**
-     * Set up view event handlers and bindings.
-     */
     private void setupView() {
-        // Cell click handler
         view.renderBoard(board, this::handleCellClick);
-
-        // Restart button
         view.setOnRestart(this::restart);
-
-        // Bind observable properties for auto-updating UI (Observer Pattern)
         setupBindings();
     }
 
@@ -55,27 +59,21 @@ public class GameController {
         );
     }
 
-    /**
-     * Handle cell click: select first cell, then attempt swap with second.
-     */
     private void handleCellClick(Cell clicked) {
-        if (!state.canPlay()) {
+        if (!state.canPlay() || isAnimating.get()) {
             return;
         }
 
         if (selectedCell == null) {
-            // First selection
             selectedCell = clicked;
             view.highlightCell(clicked);
             view.setStatusText("");
         } else {
-            // Second selection: attempt swap
             Cell first = selectedCell;
             selectedCell = null;
 
             if (first == clicked) {
-                // Deselect
-                view.renderBoard(board, this::handleCellClick);
+                view.clearSelection();
                 view.setStatusText("");
                 return;
             }
@@ -83,7 +81,6 @@ public class GameController {
             if (isAdjacent(first, clicked)) {
                 attemptSwap(first, clicked);
             } else {
-                // Select new cell instead
                 selectedCell = clicked;
                 view.highlightCell(clicked);
                 view.setStatusText("");
@@ -91,88 +88,169 @@ public class GameController {
         }
     }
 
-    /**
-     * Check if two cells are adjacent (up/down/left/right).
-     */
     private boolean isAdjacent(Cell a, Cell b) {
         int rowDiff = Math.abs(a.getRow() - b.getRow());
         int colDiff = Math.abs(a.getCol() - b.getCol());
         return (rowDiff + colDiff) == 1;
     }
 
-    /**
-     * Attempt a swap, check for matches, and handle cascade.
-     */
     private void attemptSwap(Cell a, Cell b) {
-        // Perform swap
-        board.swap(a, b);
+        isAnimating.set(true);
+        view.setAnimating(true);
 
-        // Check for matches
-        var matches = board.findMatches();
+        StackPane paneA = view.getCellPane(a);
+        StackPane paneB = view.getCellPane(b);
 
-        if (matches.isEmpty()) {
-            // No match — revert swap
+        // Step 1: Animate swap
+        animationManager.playSwap(paneA, paneB, () -> {
+            // Step 2: After swap animation completes, check for matches
             board.swap(a, b);
-            view.setStatusText("Invalid move!");
+            var matches = board.findMatches();
+
+            if (matches.isEmpty()) {
+                // No match — revert swap, animate back
+                board.swap(a, b);
+                animationManager.playSwapBack(paneA, paneB, () -> {
+                    view.renderBoard(board, this::handleCellClick);
+                    view.setStatusText("Invalid move!");
+                    unlockInput();
+                });
+                return;
+            }
+
+            // Valid match — start cascade
+            cascadeStep(matches);
+        });
+    }
+
+    /**
+     * One step of the cascade: remove matched → animate removal →
+     * apply gravity → animate gravity → fill new → animate spawn →
+     * check for next cascade step.
+     */
+    private void cascadeStep(Set<Cell> matches) {
+        if (matches.isEmpty()) {
+            // Cascade complete
+            scoreManager.useMove();
             view.renderBoard(board, this::handleCellClick);
+            unlockInput();
+
+            if (scoreManager.isGameOver()) {
+                transitionToGameOver();
+            }
             return;
         }
 
-        // Valid match — process cascade
-        processCascade(matches);
-
-        // Use a move
-        scoreManager.useMove();
-
-        // Check game over
-        if (scoreManager.isGameOver()) {
-            transitionToGameOver();
+        // Collect panes for matched cells (for removal animation)
+        List<StackPane> removalPanes = new ArrayList<>();
+        for (Cell cell : matches) {
+            StackPane pane = view.getCellPane(cell);
+            if (pane != null) {
+                removalPanes.add(pane);
+            }
         }
 
-        // Refresh view
-        view.renderBoard(board, this::handleCellClick);
+        // Step 1: Animate removal
+        animationManager.playRemoval(removalPanes, () -> {
+            // Step 2: After removal animation, apply model changes
+            board.removeMatches(matches);
+            Map<Cell, Integer> gravityDrops = board.applyGravity();
+
+            // Fill empty cells with new candies
+            List<Cell> newCells = new ArrayList<>();
+            for (int r = 0; r < Board.SIZE; r++) {
+                for (int c = 0; c < Board.SIZE; c++) {
+                    Cell cell = board.getCell(r, c);
+                    if (cell.isEmpty()) {
+                        cell.setCandy(com.ooplab.candycrush.util.CandyFactory.createRandom());
+                        newCells.add(cell);
+                    }
+                }
+            }
+
+            // Re-render board to show post-gravity state + new candies
+            view.renderBoard(board, this::handleCellClick);
+
+            // Map gravity drops to panes (need lookup after re-render)
+            Map<StackPane, Integer> dropDistances = new HashMap<>();
+            for (Map.Entry<Cell, Integer> entry : gravityDrops.entrySet()) {
+                StackPane pane = view.getCellPane(entry.getKey());
+                if (pane != null) {
+                    dropDistances.put(pane, entry.getValue());
+                }
+            }
+
+            // Map new cells to panes with their row positions
+            List<StackPane> spawnPanes = new ArrayList<>();
+            Map<StackPane, Integer> spawnRows = new HashMap<>();
+            for (Cell cell : newCells) {
+                StackPane pane = view.getCellPane(cell);
+                if (pane != null) {
+                    spawnPanes.add(pane);
+                    spawnRows.put(pane, cell.getRow());
+                }
+            }
+
+            // Step 3: Animate gravity + spawn sequentially
+            if (dropDistances.isEmpty() && spawnPanes.isEmpty()) {
+                // Nothing to animate, proceed to next cascade step
+                cascadeStep(board.findMatches());
+            } else {
+                animateGravityThenSpawn(dropDistances, spawnPanes, spawnRows);
+            }
+        });
     }
 
     /**
-     * Process cascade: remove matches, apply gravity, refill, repeat until no matches.
+     * Animate gravity then spawn in sequence.
      */
-    private void processCascade(java.util.Set<Cell> matches) {
-        while (!matches.isEmpty()) {
-            int count = board.removeMatches(matches);
-            scoreManager.addScore(count);
+    private void animateGravityThenSpawn(
+            Map<StackPane, Integer> dropDistances,
+            List<StackPane> spawnPanes,
+            Map<StackPane, Integer> spawnRows) {
 
-            board.applyGravity();
-            board.fillEmpty();
-
-            matches = board.findMatches();
+        if (!dropDistances.isEmpty()) {
+            // Animate gravity first, then spawn
+            animationManager.playGravity(dropDistances, () -> {
+                if (!spawnPanes.isEmpty()) {
+                    animationManager.playSpawn(spawnPanes, spawnRows, () -> {
+                        // Check for next cascade matches
+                        cascadeStep(board.findMatches());
+                    });
+                } else {
+                    cascadeStep(board.findMatches());
+                }
+            });
+        } else if (!spawnPanes.isEmpty()) {
+            // Only spawn animation needed
+            animationManager.playSpawn(spawnPanes, spawnRows, () -> {
+                cascadeStep(board.findMatches());
+            });
         }
     }
 
-    /**
-     * Transition to Game Over state.
-     */
+    private void unlockInput() {
+        isAnimating.set(false);
+        view.setAnimating(false);
+    }
+
     private void transitionToGameOver() {
         state = gameOverState;
         state.onEnter();
         view.setStatusText("Game Over! Final Score: " + scoreManager.getScore());
     }
 
-    /**
-     * Restart the game: new board, reset score, back to playing state.
-     */
     private void restart() {
-        // Reset all state
         board.reset();
         scoreManager.reset();
         state = playingState;
         selectedCell = null;
+        isAnimating.set(false);
+        view.setAnimating(false);
         view.setStatusText("");
         view.renderBoard(board, this::handleCellClick);
     }
 
-    /**
-     * Initial view refresh.
-     */
     private void refreshView() {
         view.setScoreText("Score: " + scoreManager.getScore());
         view.setMovesText("Moves: " + scoreManager.getMoves());
