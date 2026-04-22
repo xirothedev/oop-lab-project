@@ -15,6 +15,8 @@ public interface GameSession {
 
     Board getBoard();
 
+    Board getBoardCopy();
+
     GameState getState();
 
     LevelDefinition getLevel();

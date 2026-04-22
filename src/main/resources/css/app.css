@@ -62,6 +62,17 @@
     -fx-text-fill: #14171f;
 }
 
+.score-popup {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffd43b;
+    -fx-effect: dropshadow(gaussian, rgba(255, 212, 59, 0.6), 8, 0.3, 0, 0);
+}
+
+.special-candy-glow {
+    -fx-effect: dropshadow(gaussian, #ffd43b, 20, 0.5, 0, 0);
+}
+
 .table-view,
 .list-view,
 .text-area {

@@ -60,6 +60,11 @@ public final class DefaultGameSession implements GameSession {
     }
 
     @Override
+    public Board getBoardCopy() {
+        return board.copy();
+    }
+
+    @Override
     public GameState getState() {
         return gameState;
     }

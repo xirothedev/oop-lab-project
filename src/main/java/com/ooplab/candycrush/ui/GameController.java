@@ -1,21 +1,15 @@
 package com.ooplab.candycrush.ui;
 
 import com.ooplab.candycrush.app.GameSession;
-import com.ooplab.candycrush.domain.Board;
-import com.ooplab.candycrush.domain.Candy;
-import com.ooplab.candycrush.domain.CandyColor;
-import com.ooplab.candycrush.domain.GameStatus;
-import com.ooplab.candycrush.domain.GoalType;
-import com.ooplab.candycrush.domain.LevelDefinition;
-import com.ooplab.candycrush.domain.Move;
-import com.ooplab.candycrush.domain.Position;
-import com.ooplab.candycrush.domain.ResolutionResult;
-import com.ooplab.candycrush.domain.SpecialType;
+import com.ooplab.candycrush.domain.*;
+import com.ooplab.candycrush.ui.animation.AnimationService;
+import com.ooplab.candycrush.ui.animation.CandyNodeManager;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -33,24 +27,31 @@ public final class GameController extends BaseController {
     private Label hintLabel;
     @FXML
     private GridPane boardGrid;
+    @FXML
+    private Pane overlayPane;
 
-    private LevelDefinition level;
     private Position selectedPosition;
+    private CandyNodeManager nodeManager;
+    private AnimationService animationService;
 
     public void setLevel(LevelDefinition level) {
-        this.level = level;
         GameSession session = router().context().gameSession();
         session.start(level);
+        nodeManager = new CandyNodeManager();
+        animationService = new AnimationService(boardGrid, overlayPane, nodeManager);
         updateHeader();
-        renderBoard();
+        initializeBoard();
     }
 
     @FXML
     private void handleRestart() {
         router().context().gameSession().restart();
         selectedPosition = null;
+        nodeManager.clear();
+        boardGrid.getChildren().clear();
+        overlayPane.getChildren().clear();
         updateHeader();
-        renderBoard();
+        initializeBoard();
     }
 
     @FXML
@@ -73,7 +74,7 @@ public final class GameController extends BaseController {
                 : "Selected: (" + selectedPosition.row() + ", " + selectedPosition.col() + ")");
     }
 
-    private void renderBoard() {
+    private void initializeBoard() {
         boardGrid.getChildren().clear();
         boardGrid.setHgap(6);
         boardGrid.setVgap(6);
@@ -84,6 +85,7 @@ public final class GameController extends BaseController {
                 Position position = new Position(row, col);
                 StackPane cell = createCell(board, position);
                 boardGrid.add(cell, col, row);
+                nodeManager.register(position, cell);
             }
         }
     }
@@ -111,36 +113,106 @@ public final class GameController extends BaseController {
     }
 
     private void handleCellClick(Position position) {
+        if (animationService.isAnimating()) return;
+
         if (selectedPosition == null) {
             selectedPosition = position;
             updateHeader();
-            renderBoard();
+            refreshCellSelection();
             return;
         }
         if (selectedPosition.equals(position)) {
             selectedPosition = null;
             updateHeader();
-            renderBoard();
+            refreshCellSelection();
             return;
         }
 
         GameSession session = router().context().gameSession();
-        ResolutionResult result = session.applyMove(new Move(selectedPosition, position));
+        Board preSnapshot = session.getBoardCopy();
+        Position first = selectedPosition;
         selectedPosition = null;
-        if (!result.accepted()) {
-            hintLabel.setText("Invalid move. Try another swap.");
-        }
         updateHeader();
-        renderBoard();
-        if (result.endState() == GameStatus.WON || result.endState() == GameStatus.LOST) {
-            if (result.endState() == GameStatus.WON) {
-                router().context().leaderboardRepository().addScore("Player", session.getState().score(), session.getLevel().name());
+
+        animationService.playSwap(first, position, () -> {
+            ResolutionResult result = session.applyMove(new Move(first, position));
+
+            if (!result.accepted()) {
+                animationService.playReverseSwap(first, position, () -> refreshCellSelection());
+                hintLabel.setText("Invalid move. Try another swap.");
+                return;
             }
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setHeaderText(result.endState() == GameStatus.WON ? "Level completed" : "Out of moves");
-            alert.setContentText("Final score: " + session.getState().score());
-            alert.showAndWait();
+
+            java.util.Map<Position, Candy> refilled = findNewCandies(preSnapshot, session.getBoard());
+            animationService.playEvents(result.events(), preSnapshot, session.getBoard(), () -> {
+                if (!refilled.isEmpty()) {
+                    animationService.playRefill(refilled, this::refreshBoard);
+                } else {
+                    refreshBoard();
+                }
+            });
+
+            if (result.endState() == GameStatus.WON || result.endState() == GameStatus.LOST) {
+                if (result.endState() == GameStatus.WON) {
+                    router().context().leaderboardRepository().addScore("Player", session.getState().score(), session.getLevel().name());
+                }
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setHeaderText(result.endState() == GameStatus.WON ? "Level completed" : "Out of moves");
+                alert.setContentText("Final score: " + session.getState().score());
+                alert.showAndWait();
+                refreshBoard();
+            }
+        });
+    }
+
+    private java.util.Map<Position, Candy> findNewCandies(Board before, Board after) {
+        java.util.Map<Position, Candy> newCandies = new java.util.HashMap<>();
+        for (int row = 0; row < after.rows(); row++) {
+            for (int col = 0; col < after.cols(); col++) {
+                Position pos = new Position(row, col);
+                Candy afterCandy = after.getCandy(pos);
+                Candy beforeCandy = before.getCandy(pos);
+                if (afterCandy != null && beforeCandy == null) {
+                    newCandies.put(pos, afterCandy);
+                }
+            }
         }
+        return newCandies;
+    }
+
+    private void refreshCellSelection() {
+        for (int row = 0; row < boardGrid.getRowCount(); row++) {
+            for (int col = 0; col < boardGrid.getColumnCount(); col++) {
+                var cell = getCellAt(col, row);
+                if (cell != null) {
+                    cell.getStyleClass().removeAll("selected-cell");
+                    if (selectedPosition != null && selectedPosition.row() == row && selectedPosition.col() == col) {
+                        cell.getStyleClass().add("selected-cell");
+                    }
+                }
+            }
+        }
+    }
+
+    private StackPane getCellAt(int col, int row) {
+        for (var node : boardGrid.getChildren()) {
+            if (node instanceof StackPane cell) {
+                Integer cellCol = GridPane.getColumnIndex(cell);
+                Integer cellRow = GridPane.getRowIndex(cell);
+                if ((cellCol == null ? 0 : cellCol) == col && (cellRow == null ? 0 : cellRow) == row) {
+                    return cell;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void refreshBoard() {
+        nodeManager.clear();
+        overlayPane.getChildren().clear();
+        boardGrid.getChildren().clear();
+        initializeBoard();
+        updateHeader();
     }
 
     private Color colorOf(Candy candy) {
@@ -171,4 +243,3 @@ public final class GameController extends BaseController {
         };
     }
 }
-
