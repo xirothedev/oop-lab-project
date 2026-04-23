@@ -6,6 +6,7 @@ import javafx.animation.PauseTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.SequentialTransition;
 import javafx.animation.TranslateTransition;
+import javafx.animation.Interpolator;
 import javafx.scene.Node;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
@@ -22,13 +23,13 @@ import java.util.Map;
  */
 public class AnimationManager {
 
-    private static final Duration SWAP_DURATION = Duration.millis(250);
-    private static final Duration REMOVAL_DURATION = Duration.millis(350);
-    private static final Duration GRAVITY_DURATION_PER_ROW = Duration.millis(120);
-    private static final Duration ROW_STAGGER_DELAY = Duration.millis(80);
-    private static final Duration SPAWN_DURATION = Duration.millis(350);
-    private static final Duration PAUSE_BEFORE_REMOVAL = Duration.millis(100);
-    private static final Duration PAUSE_BEFORE_SPAWN = Duration.millis(150);
+    private static final Duration SWAP_DURATION = Duration.millis(200);
+    private static final Duration REMOVAL_DURATION = Duration.millis(200);
+    private static final Duration GRAVITY_DURATION_PER_ROW = Duration.millis(100);
+    private static final Duration ROW_STAGGER_DELAY = Duration.millis(50);
+    private static final Duration SPAWN_DURATION = Duration.millis(250);
+    private static final Duration PAUSE_BEFORE_REMOVAL = Duration.millis(50);
+    private static final Duration PAUSE_BEFORE_SPAWN = Duration.millis(50);
 
     /**
      * Animate two cell panes swapping positions.
@@ -46,10 +47,12 @@ public class AnimationManager {
         TranslateTransition translateA = new TranslateTransition(SWAP_DURATION, paneA);
         translateA.setToX(deltaX);
         translateA.setToY(deltaY);
+        translateA.setInterpolator(Interpolator.EASE_BOTH);
 
         TranslateTransition translateB = new TranslateTransition(SWAP_DURATION, paneB);
         translateB.setToX(-deltaX);
         translateB.setToY(-deltaY);
+        translateB.setInterpolator(Interpolator.EASE_BOTH);
 
         ParallelTransition parallel = new ParallelTransition(translateA, translateB);
         parallel.setOnFinished(e -> {
@@ -92,10 +95,12 @@ public class AnimationManager {
                 ScaleTransition scale = new ScaleTransition(REMOVAL_DURATION, candyNode);
                 scale.setToX(0);
                 scale.setToY(0);
+                scale.setInterpolator(Interpolator.EASE_IN);
 
                 FadeTransition fade = new FadeTransition(REMOVAL_DURATION, candyNode);
                 fade.setFromValue(1);
                 fade.setToValue(0);
+                fade.setInterpolator(Interpolator.EASE_IN);
 
                 allRemovals.getChildren().add(new ParallelTransition(scale, fade));
             }
@@ -134,6 +139,7 @@ public class AnimationManager {
             TranslateTransition fall = new TranslateTransition(
                     GRAVITY_DURATION_PER_ROW.multiply(rowsDropped), pane);
             fall.setToY(rowsDropped * cellHeight);
+            fall.setInterpolator(Interpolator.EASE_IN);
 
             // Stagger: bottom candies start first, upper ones delayed
             fall.setDelay(ROW_STAGGER_DELAY.multiply(i));
@@ -176,6 +182,7 @@ public class AnimationManager {
 
             TranslateTransition spawn = new TranslateTransition(SPAWN_DURATION, pane);
             spawn.setToY(0);
+            spawn.setInterpolator(Interpolator.EASE_OUT);
             // Higher rows (smaller row index) start first
             spawn.setDelay(ROW_STAGGER_DELAY.multiply(row));
 
