@@ -1,45 +1,59 @@
 package com.ooplab.candycrush.util;
 
 import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
 import javafx.animation.ParallelTransition;
 import javafx.animation.PauseTransition;
+import javafx.animation.RotateTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.SequentialTransition;
 import javafx.animation.TranslateTransition;
-import javafx.animation.Interpolator;
 import javafx.scene.Node;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Central animation service for all candy transitions.
  * Each method completes fully before calling its callback.
+ *
+ * Feel notes:
+ *  - Gravity uses EASE_IN (accelerating) + sqrt duration scaling so long falls
+ *    do not drag; landing squash-stretch adds weight perception.
+ *  - Spawn uses EASE_OUT (decelerating) + fade-in; small settle bounce.
+ *  - Removal does a pulse-glow then rotate-shrink-fade.
+ *  - Swap is EASE_BOTH for a clean back-and-forth.
  */
 public class AnimationManager {
 
-    private static final Duration SWAP_DURATION = Duration.millis(200);
-    private static final Duration REMOVAL_DURATION = Duration.millis(200);
-    private static final Duration GRAVITY_DURATION_PER_ROW = Duration.millis(100);
-    private static final Duration ROW_STAGGER_DELAY = Duration.millis(50);
-    private static final Duration SPAWN_DURATION = Duration.millis(250);
-    private static final Duration PAUSE_BEFORE_REMOVAL = Duration.millis(50);
-    private static final Duration PAUSE_BEFORE_SPAWN = Duration.millis(50);
+    private static final double CELL_PITCH = 63.0; // CELL_SIZE(60) + GAP(3)
+
+    private static final Duration SWAP_DURATION = Duration.millis(220);
+    private static final Duration PULSE_DURATION = Duration.millis(140);
+    private static final Duration REMOVAL_DURATION = Duration.millis(320);
+    private static final Duration GRAVITY_BASE_PER_ROW = Duration.millis(95);
+    private static final Duration COLUMN_STAGGER = Duration.millis(35);
+    private static final Duration LAND_SQUASH_DURATION = Duration.millis(90);
+    private static final Duration LAND_RECOVER_DURATION = Duration.millis(110);
+    private static final Duration SPAWN_DURATION = Duration.millis(360);
+    private static final Duration SPAWN_SETTLE_DURATION = Duration.millis(110);
+
+    private static final double LAND_SQUASH_X = 1.14;
+    private static final double LAND_SQUASH_Y = 0.82;
+    private static final double SPAWN_OVERSHOOT = 1.08;
 
     /**
      * Animate two cell panes swapping positions.
-     * Callback fires only after animation completes.
      */
     public void playSwap(StackPane paneA, StackPane paneB, Runnable callback) {
-        Integer colA = GridPane.getColumnIndex(paneA);
-        Integer colB = GridPane.getColumnIndex(paneB);
-        Integer rowA = GridPane.getRowIndex(paneA);
-        Integer rowB = GridPane.getRowIndex(paneB);
+        int colA = safeCol(paneA);
+        int colB = safeCol(paneB);
+        int rowA = safeRow(paneA);
+        int rowB = safeRow(paneB);
 
         double deltaX = (colB - colA) * (paneA.getPrefWidth() + 3);
         double deltaY = (rowB - rowA) * (paneA.getPrefHeight() + 3);
@@ -56,7 +70,6 @@ public class AnimationManager {
 
         ParallelTransition parallel = new ParallelTransition(translateA, translateB);
         parallel.setOnFinished(e -> {
-            // Reset translate immediately so model position matches visual
             paneA.setTranslateX(0);
             paneA.setTranslateY(0);
             paneB.setTranslateX(0);
@@ -74,8 +87,7 @@ public class AnimationManager {
     }
 
     /**
-     * Animate removal: shrink + fade out candy rectangles.
-     * Small initial pause for visual clarity.
+     * Animate removal: glow pulse, then rotate + scale + fade out.
      */
     public void playRemoval(List<StackPane> cellPanes, Runnable callback) {
         if (cellPanes.isEmpty()) {
@@ -83,36 +95,45 @@ public class AnimationManager {
             return;
         }
 
-        SequentialTransition seq = new SequentialTransition();
-
-        // Brief pause before removal starts
-        seq.getChildren().add(new PauseTransition(PAUSE_BEFORE_REMOVAL));
-
-        ParallelTransition allRemovals = new ParallelTransition();
+        ParallelTransition all = new ParallelTransition();
         for (StackPane pane : cellPanes) {
             Node candyNode = getCandyNode(pane);
-            if (candyNode != null) {
-                ScaleTransition scale = new ScaleTransition(REMOVAL_DURATION, candyNode);
-                scale.setToX(0);
-                scale.setToY(0);
-                scale.setInterpolator(Interpolator.EASE_IN);
-
-                FadeTransition fade = new FadeTransition(REMOVAL_DURATION, candyNode);
-                fade.setFromValue(1);
-                fade.setToValue(0);
-                fade.setInterpolator(Interpolator.EASE_IN);
-
-                allRemovals.getChildren().add(new ParallelTransition(scale, fade));
+            if (candyNode == null) {
+                continue;
             }
+
+            // Pulse: scale up briefly (glow suggestion)
+            ScaleTransition pulseUp = new ScaleTransition(PULSE_DURATION, candyNode);
+            pulseUp.setToX(1.25);
+            pulseUp.setToY(1.25);
+            pulseUp.setInterpolator(Interpolator.EASE_OUT);
+
+            // Vanish: rotate + shrink + fade
+            ScaleTransition shrink = new ScaleTransition(REMOVAL_DURATION, candyNode);
+            shrink.setToX(0);
+            shrink.setToY(0);
+            shrink.setInterpolator(Interpolator.EASE_IN);
+
+            FadeTransition fade = new FadeTransition(REMOVAL_DURATION, candyNode);
+            fade.setFromValue(1);
+            fade.setToValue(0);
+
+            RotateTransition rotate = new RotateTransition(REMOVAL_DURATION, candyNode);
+            rotate.setByAngle(180);
+            rotate.setInterpolator(Interpolator.EASE_IN);
+
+            ParallelTransition vanish = new ParallelTransition(shrink, fade, rotate);
+            SequentialTransition perCandy = new SequentialTransition(pulseUp, vanish);
+            all.getChildren().add(perCandy);
         }
-        seq.getChildren().add(allRemovals);
-        seq.setOnFinished(e -> callback.run());
-        seq.play();
+
+        all.setOnFinished(e -> callback.run());
+        all.play();
     }
 
     /**
-     * Animate gravity: candies fall row-by-row with stagger delay.
-     * Bottom candies fall first, upper ones follow (cascade effect).
+     * Gravity: candies fall with accelerating ease + landing squash-stretch.
+     * Per-column stagger creates a wave effect instead of uniform drop.
      */
     public void playGravity(Map<StackPane, Integer> dropDistances, Runnable callback) {
         if (dropDistances.isEmpty()) {
@@ -120,47 +141,63 @@ public class AnimationManager {
             return;
         }
 
-        SequentialTransition seq = new SequentialTransition();
+        ParallelTransition all = new ParallelTransition();
 
-        // Sort by row (bottom first = higher row index first)
-        List<Map.Entry<StackPane, Integer>> sorted = new ArrayList<>(dropDistances.entrySet());
-        sorted.sort(Comparator.<Map.Entry<StackPane, Integer>, Integer>comparing(
-                e -> GridPane.getRowIndex(e.getKey()) != null ? GridPane.getRowIndex(e.getKey()) : 0
-        ).reversed());
-
-        ParallelTransition allFalls = new ParallelTransition();
-        double cellHeight = 63; // CELL_SIZE(60) + GAP(3)
-
-        for (int i = 0; i < sorted.size(); i++) {
-            Map.Entry<StackPane, Integer> entry = sorted.get(i);
+        for (Map.Entry<StackPane, Integer> entry : dropDistances.entrySet()) {
             StackPane pane = entry.getKey();
             int rowsDropped = entry.getValue();
+            if (rowsDropped <= 0) {
+                continue;
+            }
 
-            TranslateTransition fall = new TranslateTransition(
-                    GRAVITY_DURATION_PER_ROW.multiply(rowsDropped), pane);
-            fall.setToY(rowsDropped * cellHeight);
+            Duration fallDuration = GRAVITY_BASE_PER_ROW.multiply(Math.sqrt(rowsDropped) + 0.5);
+
+            TranslateTransition fall = new TranslateTransition(fallDuration, pane);
+            fall.setFromY(-rowsDropped * CELL_PITCH);
+            fall.setToY(0);
             fall.setInterpolator(Interpolator.EASE_IN);
 
-            // Stagger: bottom candies start first, upper ones delayed
-            fall.setDelay(ROW_STAGGER_DELAY.multiply(i));
+            // Landing squash + recover
+            Node candyNode = getCandyNode(pane);
+            SequentialTransition perPane;
+            if (candyNode != null) {
+                ScaleTransition squash = new ScaleTransition(LAND_SQUASH_DURATION, candyNode);
+                squash.setToX(LAND_SQUASH_X);
+                squash.setToY(LAND_SQUASH_Y);
+                squash.setInterpolator(Interpolator.EASE_OUT);
 
-            allFalls.getChildren().add(fall);
+                ScaleTransition recover = new ScaleTransition(LAND_RECOVER_DURATION, candyNode);
+                recover.setToX(1.0);
+                recover.setToY(1.0);
+                recover.setInterpolator(Interpolator.EASE_OUT);
+
+                perPane = new SequentialTransition(fall, squash, recover);
+            } else {
+                perPane = new SequentialTransition(fall);
+            }
+
+            int col = safeCol(pane);
+            perPane.setDelay(COLUMN_STAGGER.multiply(col));
+            all.getChildren().add(perPane);
         }
 
-        seq.getChildren().add(allFalls);
-        seq.setOnFinished(e -> {
+        all.setOnFinished(e -> {
             for (StackPane pane : dropDistances.keySet()) {
                 pane.setTranslateX(0);
                 pane.setTranslateY(0);
+                Node candy = getCandyNode(pane);
+                if (candy != null) {
+                    candy.setScaleX(1.0);
+                    candy.setScaleY(1.0);
+                }
             }
             callback.run();
         });
-        seq.play();
+        all.play();
     }
 
     /**
-     * Animate new candy spawn: slide in from above.
-     * Top-row candies spawn first, lower rows stagger later.
+     * New candies slide in from above with ease-out + fade-in + tiny settle bounce.
      */
     public void playSpawn(List<StackPane> spawnPanes, Map<StackPane, Integer> rowMap, Runnable callback) {
         if (spawnPanes.isEmpty()) {
@@ -168,45 +205,84 @@ public class AnimationManager {
             return;
         }
 
-        SequentialTransition seq = new SequentialTransition();
+        ParallelTransition all = new ParallelTransition();
 
-        // Pause before spawn starts (after gravity settles)
-        seq.getChildren().add(new PauseTransition(PAUSE_BEFORE_SPAWN));
-
-        ParallelTransition allSpawns = new ParallelTransition();
         for (StackPane pane : spawnPanes) {
             Integer row = rowMap.getOrDefault(pane, 0);
-            double startY = -(row + 1) * pane.getPrefHeight();
+            double startY = -(row + 1) * CELL_PITCH;
 
             pane.setTranslateY(startY);
+            Node candyNode = getCandyNode(pane);
+            if (candyNode != null) {
+                candyNode.setOpacity(0);
+            }
 
-            TranslateTransition spawn = new TranslateTransition(SPAWN_DURATION, pane);
-            spawn.setToY(0);
-            spawn.setInterpolator(Interpolator.EASE_OUT);
-            // Higher rows (smaller row index) start first
-            spawn.setDelay(ROW_STAGGER_DELAY.multiply(row));
+            TranslateTransition drop = new TranslateTransition(SPAWN_DURATION, pane);
+            drop.setToY(0);
+            drop.setInterpolator(Interpolator.EASE_IN);
 
-            allSpawns.getChildren().add(spawn);
+            ParallelTransition arrive;
+            if (candyNode != null) {
+                FadeTransition fadeIn = new FadeTransition(SPAWN_DURATION.divide(2), candyNode);
+                fadeIn.setFromValue(0);
+                fadeIn.setToValue(1);
+                arrive = new ParallelTransition(drop, fadeIn);
+            } else {
+                arrive = new ParallelTransition(drop);
+            }
+
+            SequentialTransition perPane;
+            if (candyNode != null) {
+                ScaleTransition overshoot = new ScaleTransition(SPAWN_SETTLE_DURATION, candyNode);
+                overshoot.setToX(SPAWN_OVERSHOOT);
+                overshoot.setToY(SPAWN_OVERSHOOT);
+                overshoot.setInterpolator(Interpolator.EASE_OUT);
+
+                ScaleTransition settle = new ScaleTransition(SPAWN_SETTLE_DURATION, candyNode);
+                settle.setToX(1.0);
+                settle.setToY(1.0);
+                settle.setInterpolator(Interpolator.EASE_OUT);
+
+                perPane = new SequentialTransition(arrive, overshoot, settle);
+            } else {
+                perPane = new SequentialTransition(arrive);
+            }
+
+            int col = safeCol(pane);
+            perPane.setDelay(COLUMN_STAGGER.multiply(col));
+            all.getChildren().add(perPane);
         }
 
-        seq.getChildren().add(allSpawns);
-        seq.setOnFinished(e -> {
+        all.setOnFinished(e -> {
             for (StackPane pane : spawnPanes) {
                 pane.setTranslateX(0);
                 pane.setTranslateY(0);
+                Node candy = getCandyNode(pane);
+                if (candy != null) {
+                    candy.setScaleX(1.0);
+                    candy.setScaleY(1.0);
+                    candy.setOpacity(1.0);
+                }
             }
             callback.run();
         });
-        seq.play();
+        all.play();
     }
 
-    /**
-     * Get the candy rectangle node from a cell pane (child index 1).
-     */
     private Node getCandyNode(StackPane pane) {
-        if (pane.getChildren().size() < 2) {
+        if (pane == null || pane.getChildren().size() < 2) {
             return null;
         }
         return pane.getChildren().get(1);
+    }
+
+    private int safeCol(Node n) {
+        Integer v = GridPane.getColumnIndex(n);
+        return v != null ? v : 0;
+    }
+
+    private int safeRow(Node n) {
+        Integer v = GridPane.getRowIndex(n);
+        return v != null ? v : 0;
     }
 }
