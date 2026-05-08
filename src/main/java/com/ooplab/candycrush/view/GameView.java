@@ -1,7 +1,10 @@
 package com.ooplab.candycrush.view;
 
+import com.ooplab.candycrush.model.BlastDirection;
 import com.ooplab.candycrush.model.Board;
+import com.ooplab.candycrush.model.Candy;
 import com.ooplab.candycrush.model.Cell;
+import com.ooplab.candycrush.model.StripedCandy;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -33,13 +36,8 @@ public class GameView {
     private final Label statusLabel;
     private final Button restartButton;
 
-    // Track selected cell highlight
-    private Rectangle selectedHighlight;
-
     // Map Cell -> StackPane for animation targeting
     private final Map<Cell, StackPane> cellMap = new HashMap<>();
-
-    private boolean isAnimating = false;
 
     public GameView(Stage stage) {
         this.stage = stage;
@@ -99,7 +97,6 @@ public class GameView {
     public void renderBoard(Board board, Consumer<Cell> onCellClick) {
         boardGrid.getChildren().clear();
         cellMap.clear();
-        selectedHighlight = null;
 
         for (int r = 0; r < Board.SIZE; r++) {
             for (int c = 0; c < Board.SIZE; c++) {
@@ -129,65 +126,75 @@ public class GameView {
         pane.getChildren().add(bg);
 
         if (!cell.isEmpty() && cell.getCandy() != null) {
-            Rectangle candyRect = new Rectangle(CELL_SIZE - 16, CELL_SIZE - 16);
-            candyRect.setArcWidth(8);
-            candyRect.setArcHeight(8);
-            candyRect.setFill(cell.getCandy().getType().getColor());
-            candyRect.setStroke(Color.DARKGRAY);
-            candyRect.setStrokeWidth(1);
-            pane.getChildren().add(candyRect);
+            pane.getChildren().add(createCandyVisual(cell.getCandy()));
         }
 
         return pane;
     }
 
+    private StackPane createCandyVisual(Candy candy) {
+        StackPane candyVisual = new StackPane();
+
+        Rectangle candyRect = new Rectangle(CELL_SIZE - 16, CELL_SIZE - 16);
+        candyRect.setArcWidth(8);
+        candyRect.setArcHeight(8);
+        candyRect.setFill(candy.getType().getColor());
+        candyRect.setStroke(Color.DARKGRAY);
+        candyRect.setStrokeWidth(1);
+        candyVisual.getChildren().add(candyRect);
+
+        if (candy instanceof StripedCandy stripedCandy) {
+            addStripedOverlay(candyVisual, stripedCandy.getBlastDirection());
+        }
+
+        return candyVisual;
+    }
+
+    private void addStripedOverlay(StackPane candyVisual, BlastDirection blastDirection) {
+        double[] offsets = {-10, 0, 10};
+
+        for (double offset : offsets) {
+            Rectangle stripe;
+            if (blastDirection == BlastDirection.ROW) {
+                stripe = new Rectangle(CELL_SIZE - 24, 4);
+                stripe.setTranslateY(offset);
+            } else {
+                stripe = new Rectangle(4, CELL_SIZE - 24);
+                stripe.setTranslateX(offset);
+            }
+
+            stripe.setFill(Color.rgb(255, 255, 255, 0.82));
+            stripe.setArcWidth(4);
+            stripe.setArcHeight(4);
+            candyVisual.getChildren().add(stripe);
+        }
+    }
+
     /**
-     * Highlight a selected cell.
+     * Highlight a selected cell. Pass {@code null} to clear the current highlight.
      */
     public void highlightCell(Cell cell) {
-        // Remove previous highlight
-        boardGrid.getChildren().forEach(node -> {
-            StackPane pane = (StackPane) node;
-            // Remove highlight rectangle if present
-            pane.getChildren().removeIf(n -> n instanceof Rectangle r && r.getStroke() == Color.GOLD && r.getStrokeWidth() == 3);
-        });
+        for (StackPane pane : cellMap.values()) {
+            pane.getChildren().removeIf(n ->
+                    n instanceof Rectangle r && r.getStroke() == Color.GOLD && r.getStrokeWidth() == 3);
+        }
 
         if (cell == null) {
             return;
         }
 
-        // Add highlight to new selection
-        for (javafx.scene.Node node : boardGrid.getChildren()) {
-            StackPane pane = (StackPane) node;
-            Cell c = (Cell) pane.getUserData();
-            if (c == cell) {
-                Rectangle highlight = new Rectangle(CELL_SIZE - 4, CELL_SIZE - 4);
-                highlight.setArcWidth(10);
-                highlight.setArcHeight(10);
-                highlight.setFill(Color.TRANSPARENT);
-                highlight.setStroke(Color.GOLD);
-                highlight.setStrokeWidth(3);
-                pane.getChildren().add(highlight);
-                selectedHighlight = highlight;
-                break;
-            }
+        StackPane pane = cellMap.get(cell);
+        if (pane == null) {
+            return;
         }
-    }
 
-    /**
-     * Bind score label to ScoreManager property (Observer Pattern).
-     */
-    public void bindScore(javafx.beans.binding.IntegerBinding scoreBinding) {
-        scoreLabel.textProperty().bind(
-                scoreBinding.asString().concat(" Score: ").concat(
-                        new javafx.beans.binding.StringBinding() {
-                            { bind(scoreBinding); }
-                            @Override protected String computeValue() { return ""; }
-                        }
-                )
-        );
-        // Simpler approach: just bind directly
-        // Redone below — use setScoreText from controller instead
+        Rectangle highlight = new Rectangle(CELL_SIZE - 4, CELL_SIZE - 4);
+        highlight.setArcWidth(10);
+        highlight.setArcHeight(10);
+        highlight.setFill(Color.TRANSPARENT);
+        highlight.setStroke(Color.GOLD);
+        highlight.setStrokeWidth(3);
+        pane.getChildren().add(highlight);
     }
 
     /**
@@ -218,22 +225,11 @@ public class GameView {
         restartButton.setOnAction(e -> action.run());
     }
 
-    public Stage getStage() {
-        return stage;
-    }
-
     /**
      * Get the StackPane for a given cell.
      */
     public StackPane getCellPane(Cell cell) {
         return cellMap.get(cell);
-    }
-
-    /**
-     * Get the underlying GridPane.
-     */
-    public GridPane getBoardGrid() {
-        return boardGrid;
     }
 
     /**
@@ -247,11 +243,6 @@ public class GameView {
      * Mark whether animations are in progress (disables input).
      */
     public void setAnimating(boolean animating) {
-        this.isAnimating = animating;
         boardGrid.setDisable(animating);
-    }
-
-    public boolean isAnimating() {
-        return isAnimating;
     }
 }

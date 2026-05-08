@@ -1,56 +1,84 @@
 package com.ooplab.candycrush.model;
 
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
- * Scans the board for horizontal and vertical matches of 3+ consecutive same-type candies.
- * Returns matched cell positions as a Set to avoid duplicates from overlapping matches.
+ * Scans the board for maximal horizontal and vertical runs of matching candy types.
  */
 public class MatchFinder {
 
     /**
-     * Find all cells that are part of a match (3+ consecutive same-type in a row or column).
+     * Find all maximal straight runs of 3+ candies with the same type.
      */
-    public Set<Cell> findMatches(Cell[][] board) {
-        Set<Cell> matched = new HashSet<>();
+    public List<MatchRun> findMatchRuns(Cell[][] board) {
+        List<MatchRun> runs = new ArrayList<>();
         int rows = board.length;
         int cols = board[0].length;
 
-        // Scan rows
         for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < cols - 2; c++) {
-                Cell c1 = board[r][c];
-                Cell c2 = board[r][c + 1];
-                Cell c3 = board[r][c + 2];
+            int c = 0;
+            while (c < cols) {
+                if (board[r][c].isEmpty()) {
+                    c++;
+                    continue;
+                }
 
-                if (!c1.isEmpty() && !c2.isEmpty() && !c3.isEmpty()
-                        && c1.getCandy().getType() == c2.getCandy().getType()
-                        && c2.getCandy().getType() == c3.getCandy().getType()) {
-                    matched.add(c1);
-                    matched.add(c2);
-                    matched.add(c3);
+                CandyType type = board[r][c].getCandy().getType();
+                int start = c;
+                while (c < cols && isSameType(board[r][c], type)) {
+                    c++;
+                }
+
+                int length = c - start;
+                if (length >= 3) {
+                    List<Cell> cells = new ArrayList<>();
+                    for (int i = start; i < c; i++) {
+                        cells.add(board[r][i]);
+                    }
+                    runs.add(new MatchRun(MatchOrientation.HORIZONTAL, cells, type));
                 }
             }
         }
 
-        // Scan columns
         for (int c = 0; c < cols; c++) {
-            for (int r = 0; r < rows - 2; r++) {
-                Cell c1 = board[r][c];
-                Cell c2 = board[r + 1][c];
-                Cell c3 = board[r + 2][c];
+            int r = 0;
+            while (r < rows) {
+                if (board[r][c].isEmpty()) {
+                    r++;
+                    continue;
+                }
 
-                if (!c1.isEmpty() && !c2.isEmpty() && !c3.isEmpty()
-                        && c1.getCandy().getType() == c2.getCandy().getType()
-                        && c2.getCandy().getType() == c3.getCandy().getType()) {
-                    matched.add(c1);
-                    matched.add(c2);
-                    matched.add(c3);
+                CandyType type = board[r][c].getCandy().getType();
+                int start = r;
+                while (r < rows && isSameType(board[r][c], type)) {
+                    r++;
+                }
+
+                int length = r - start;
+                if (length >= 3) {
+                    List<Cell> cells = new ArrayList<>();
+                    for (int i = start; i < r; i++) {
+                        cells.add(board[i][c]);
+                    }
+                    runs.add(new MatchRun(MatchOrientation.VERTICAL, cells, type));
                 }
             }
         }
 
+        return runs;
+    }
+
+    /**
+     * Find all cells that are part of any match.
+     */
+    public Set<Cell> findMatches(Cell[][] board) {
+        Set<Cell> matched = new LinkedHashSet<>();
+        for (MatchRun run : findMatchRuns(board)) {
+            matched.addAll(run.getCells());
+        }
         return matched;
     }
 
@@ -58,6 +86,10 @@ public class MatchFinder {
      * Check if the board has any valid matches.
      */
     public boolean hasMatches(Cell[][] board) {
-        return !findMatches(board).isEmpty();
+        return !findMatchRuns(board).isEmpty();
+    }
+
+    private boolean isSameType(Cell cell, CandyType type) {
+        return !cell.isEmpty() && cell.getCandy().getType() == type;
     }
 }

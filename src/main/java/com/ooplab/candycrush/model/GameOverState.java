@@ -1,9 +1,19 @@
 package com.ooplab.candycrush.model;
 
+import com.ooplab.candycrush.view.GameView;
+
 /**
  * Game Over state: no more moves, player must restart.
+ * Owns its UI side-effect: shows the final score banner on entry.
  */
 public class GameOverState implements GameState {
+    private final GameView view;
+    private final ScoreManager scoreManager;
+
+    public GameOverState(GameView view, ScoreManager scoreManager) {
+        this.view = view;
+        this.scoreManager = scoreManager;
+    }
 
     @Override
     public String getName() {
@@ -17,6 +27,6 @@ public class GameOverState implements GameState {
 
     @Override
     public void onEnter() {
-        // Triggered when moves reach 0
+        view.setStatusText("Game Over! Final Score: " + scoreManager.getScore());
     }
 }

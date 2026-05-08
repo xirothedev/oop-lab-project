@@ -1,0 +1,230 @@
+@startuml CandyCrushClassDiagram
+title Candy Crush — Class Diagram (MVC + Factory / State / Observer)
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide circle
+
+' =========================================================
+' MODEL
+' =========================================================
+package "com.ooplab.candycrush.model" {
+
+  class Board {
+    +SIZE : int = 8
+    -grid : Cell[][]
+    -matchFinder : MatchFinder
+    -candySupplier : Supplier<Candy>
+    +Board()
+    +Board(supplier : Supplier<Candy>)
+    +swap(a : Cell, b : Cell)
+    +getCell(row : int, col : int) : Cell
+    +resolveMatches(swapFrom : Cell, swapTo : Cell, fromPlayerSwap : boolean) : MatchResolution
+    +applyMatchResolution(r : MatchResolution)
+    +applyGravity() : Map<Cell,Integer>
+    +fillEmpty()
+    +reset()
+    +hasMatches() : boolean
+  }
+
+  class Cell {
+    -row : int
+    -col : int
+    -candy : Candy
+    +getRow() : int
+    +getCol() : int
+    +getCandy() : Candy
+    +setCandy(c : Candy)
+    +isEmpty() : boolean
+    +clear()
+  }
+
+  abstract class Candy {
+    -type : CandyType
+    +getType() : CandyType
+  }
+
+  class NormalCandy
+  class StripedCandy {
+    -blastDirection : BlastDirection
+    +getBlastDirection() : BlastDirection
+  }
+
+  enum CandyType {
+    RED
+    BLUE
+    GREEN
+    YELLOW
+    PURPLE
+    ORANGE
+    --
+    +getColor() : Color
+    +getSymbol() : String
+  }
+
+  enum BlastDirection { ROW; COLUMN }
+  enum MatchOrientation { HORIZONTAL; VERTICAL }
+
+  class MatchFinder {
+    +findMatchRuns(grid : Cell[][]) : List<MatchRun>
+    +hasMatches(grid : Cell[][]) : boolean
+  }
+
+  class MatchRun {
+    -orientation : MatchOrientation
+    -cells : List<Cell>
+    -candyType : CandyType
+    +length() : int
+    +contains(c : Cell) : boolean
+    +endpoint() : Cell
+  }
+
+  class MatchResolution {
+    -clearedCells : Set<Cell>
+    -specialSpawns : List<SpecialSpawn>
+    +clearedCells() : Set<Cell>
+    +specialSpawns() : List<SpecialSpawn>
+    +isEmpty() : boolean
+  }
+
+  class SpecialSpawn {
+    -cell : Cell
+    -candy : Candy
+  }
+
+  class ScoreManager <<Observer subject>> {
+    -score : IntegerProperty
+    -moves : IntegerProperty
+    +addScore(matchCount : int)
+    +useMove()
+    +isGameOver() : boolean
+    +reset()
+    +scoreProperty() : IntegerProperty
+    +movesProperty() : IntegerProperty
+  }
+
+  interface GameState <<State>> {
+    +getName() : String
+    +canPlay() : boolean
+    +onEnter()
+  }
+
+  class PlayingState {
+    -view : GameView
+  }
+
+  class GameOverState {
+    -view : GameView
+    -scoreManager : ScoreManager
+  }
+}
+
+' =========================================================
+' VIEW
+' =========================================================
+package "com.ooplab.candycrush.view" {
+  class GameView {
+    -stage : Stage
+    -boardGrid : GridPane
+    -scoreLabel : Label
+    -movesLabel : Label
+    -statusLabel : Label
+    -restartButton : Button
+    -cellMap : Map<Cell, StackPane>
+    +renderBoard(board, onCellClick)
+    +highlightCell(cell : Cell)
+    +clearSelection()
+    +setScoreText(t : String)
+    +setMovesText(t : String)
+    +setStatusText(t : String)
+    +setAnimating(b : boolean)
+    +setOnRestart(action : Runnable)
+    +getCellPane(cell : Cell) : StackPane
+    +show()
+  }
+}
+
+' =========================================================
+' CONTROLLER
+' =========================================================
+package "com.ooplab.candycrush.controller" {
+  class GameController {
+    -board : Board
+    -scoreManager : ScoreManager
+    -view : GameView
+    -animationManager : AnimationManager
+    -state : GameState
+    -playingState : GameState
+    -gameOverState : GameState
+    -selectedCell : Cell
+    -isAnimating : AtomicBoolean
+    -handleCellClick(c : Cell)
+    -attemptSwap(a : Cell, b : Cell)
+    -cascadeStep(r : MatchResolution)
+    -transitionTo(s : GameState)
+    -restart()
+  }
+}
+
+' =========================================================
+' UTIL
+' =========================================================
+package "com.ooplab.candycrush.util" {
+
+  interface AnimationManager <<Strategy>> {
+    +playSwap(a, b, cb)
+    +playSwapBack(a, b, cb)
+    +playRemoval(panes, cb)
+    +playGravity(drops, cb)
+    +playSpawn(panes, rows, cb)
+  }
+
+  class JavaFXAnimationManager
+  class CandyFactory <<Factory>> {
+    +{static} create(type : CandyType) : Candy
+    +{static} createRandom() : Candy
+  }
+}
+
+' =========================================================
+' RELATIONSHIPS
+' =========================================================
+
+' Inheritance
+Candy <|-- NormalCandy
+Candy <|-- StripedCandy
+GameState <|.. PlayingState
+GameState <|.. GameOverState
+AnimationManager <|.. JavaFXAnimationManager
+
+' Composition / aggregation
+Board "1" *-- "64" Cell
+Cell "1" o-- "0..1" Candy
+StripedCandy --> BlastDirection
+Candy --> CandyType
+Board --> MatchFinder
+MatchFinder ..> MatchRun
+MatchRun --> MatchOrientation
+MatchRun --> CandyType
+MatchRun "1" o-- "*" Cell
+MatchResolution "1" o-- "*" Cell
+MatchResolution "1" o-- "*" SpecialSpawn
+SpecialSpawn --> Cell
+SpecialSpawn --> Candy
+
+' Patterns
+CandyFactory ..> Candy : <<creates>>
+Board ..> CandyFactory : default Supplier
+ScoreManager .[#blue]> GameView : "Observer\n(JavaFX Property listener)"
+
+' Controller wiring
+GameController --> Board
+GameController --> ScoreManager
+GameController --> GameView
+GameController --> AnimationManager
+GameController --> GameState
+PlayingState --> GameView
+GameOverState --> GameView
+GameOverState --> ScoreManager
+
+@enduml
