@@ -3,6 +3,7 @@ package com.ooplab.candycrush.view;
 import com.ooplab.candycrush.model.BlastDirection;
 import com.ooplab.candycrush.model.Board;
 import com.ooplab.candycrush.model.Candy;
+import com.ooplab.candycrush.model.CandyType;
 import com.ooplab.candycrush.model.Cell;
 import com.ooplab.candycrush.model.StripedCandy;
 import com.ooplab.candycrush.util.SoundManager;
@@ -10,12 +11,11 @@ import javafx.animation.FadeTransition;
 import javafx.animation.ParallelTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.TranslateTransition;
+import javafx.beans.property.IntegerProperty;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
-import javafx.geometry.Rectangle2D;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -26,10 +26,10 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -39,17 +39,33 @@ import java.util.function.Consumer;
  * Uses PNG images for candies and supports a striped overlay for special candies.
  */
 public class GameView {
-    private static final int CELL_SIZE = 70;
-    private static final int GAP = 3;
+    public static final int CELL_SIZE = 70;
+    public static final int GAP = 3;
+
+    /**
+     * Cache decoded {@link Image} objects per {@link CandyType} so we don't re-decode
+     * the PNG on every cell render. A {@code null} value means the resource was missing
+     * and callers should fall back to the colored Rectangle path.
+     */
+    private static final Map<CandyType, Image> IMAGE_CACHE = new EnumMap<>(CandyType.class);
+
+    static {
+        for (CandyType type : CandyType.values()) {
+            var url = GameView.class.getResource(type.getImagePath());
+            IMAGE_CACHE.put(type, url == null ? null : new Image(url.toExternalForm()));
+        }
+    }
 
     private final Stage stage;
     private final StackPane root;
     private final BorderPane mainLayout;
+    private final Pane overlay;
     private final GridPane boardGrid;
     private final Label scoreLabel;
     private final Label movesLabel;
     private final Label statusLabel;
     private final Button restartButton;
+    private final Button muteButton;
 
     // Map Cell -> StackPane for animation targeting
     private final Map<Cell, StackPane> cellMap = new HashMap<>();
@@ -59,7 +75,10 @@ public class GameView {
     public GameView(Stage stage) {
         this.stage = stage;
         this.mainLayout = new BorderPane();
-        this.root = new StackPane(mainLayout);
+        this.overlay = new Pane();
+        // Overlay must not intercept clicks meant for the board grid.
+        this.overlay.setMouseTransparent(true);
+        this.root = new StackPane(mainLayout, overlay);
         this.boardGrid = new GridPane();
         this.boardGrid.setAlignment(Pos.CENTER);
         this.boardGrid.setHgap(GAP);
@@ -93,44 +112,29 @@ public class GameView {
         restartButton.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         restartButton.setPrefWidth(120);
         restartButton.setPrefHeight(40);
-        restartButton.setStyle(
-                "-fx-background-color: #ff3b3b;" +
-                        "-fx-text-fill: white;" +
-                        "-fx-background-radius: 20;" +
-                        "-fx-cursor: hand;"
-        );
-        restartButton.setOnMouseEntered(e -> restartButton.setStyle(
-                "-fx-background-color: #ff5c5c;" +
-                        "-fx-text-fill: white;" +
-                        "-fx-background-radius: 20;" +
-                        "-fx-cursor: hand;"
-        ));
-        restartButton.setOnMouseExited(e -> restartButton.setStyle(
-                "-fx-background-color: #ff3b3b;" +
-                        "-fx-text-fill: white;" +
-                        "-fx-background-radius: 20;" +
-                        "-fx-cursor: hand;"
-        ));
+        restartButton.getStyleClass().add("restart-button");
+        // Press-scale stays in Java — JavaFX CSS cannot drive scale transforms.
         restartButton.setOnMousePressed(e -> {
-            restartButton.setStyle(
-                    "-fx-background-color: #cc0000;" +
-                            "-fx-text-fill: white;" +
-                            "-fx-background-radius: 20;"
-            );
             restartButton.setScaleX(0.95);
             restartButton.setScaleY(0.95);
         });
         restartButton.setOnMouseReleased(e -> {
-            restartButton.setStyle(
-                    "-fx-background-color: #ff3b3b;" +
-                            "-fx-text-fill: white;" +
-                            "-fx-background-radius: 20;"
-            );
             restartButton.setScaleX(1);
             restartButton.setScaleY(1);
         });
 
-        infoPanel.getChildren().addAll(titleLabel, statsBox, statusLabel, restartButton);
+        muteButton = new Button("🔊");
+        muteButton.getStyleClass().add("mute-button");
+        muteButton.setOnAction(e -> {
+            boolean nowMuted = "🔊".equals(muteButton.getText());
+            SoundManager.setMuted(nowMuted);
+            muteButton.setText(nowMuted ? "🔇" : "🔊");
+        });
+
+        HBox controlsBox = new HBox(8, restartButton, muteButton);
+        controlsBox.setAlignment(Pos.CENTER);
+
+        infoPanel.getChildren().addAll(titleLabel, statsBox, statusLabel, controlsBox);
 
         mainLayout.setTop(infoPanel);
         mainLayout.setCenter(boardGrid);
@@ -142,21 +146,28 @@ public class GameView {
                         "-fx-background-position: 50% center;"
         );
 
-        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
         Scene scene = new Scene(root, 600, 680);
         scene.setFill(Color.LAVENDER);
+        var cssUrl = getClass().getResource("/style.css");
+        if (cssUrl != null) {
+            scene.getStylesheets().add(cssUrl.toExternalForm());
+        }
         stage.setTitle("Candy Crush - OOP Project");
         stage.setScene(scene);
-        stage.setResizable(true);
         stage.setMaximized(true);
-        stage.setX(bounds.getMinX());
-        stage.setY(bounds.getMinY());
-        stage.setWidth(bounds.getWidth());
-        stage.setHeight(bounds.getHeight());
     }
 
     public void show() {
         stage.show();
+    }
+
+    /**
+     * Bind the score and moves labels to the JavaFX integer properties from the model.
+     * Replaces manual change-listener wiring in the controller.
+     */
+    public void bindScoreAndMoves(IntegerProperty scoreProperty, IntegerProperty movesProperty) {
+        scoreLabel.textProperty().bind(scoreProperty.asString("Score: %d"));
+        movesLabel.textProperty().bind(movesProperty.asString("Moves: %d"));
     }
 
     /**
@@ -179,18 +190,12 @@ public class GameView {
     }
 
     /**
-     * Create a visual representation of a cell.
+     * Create a visual representation of a cell. The pane's preferred size alone keeps
+     * the grid spacing — no invisible background rectangle is needed.
      */
     private StackPane createCellPane(Cell cell) {
         StackPane pane = new StackPane();
         pane.setPrefSize(CELL_SIZE, CELL_SIZE);
-
-        Rectangle bg = new Rectangle(CELL_SIZE - 4, CELL_SIZE - 4);
-        bg.setArcWidth(10);
-        bg.setArcHeight(10);
-        bg.setFill(Color.TRANSPARENT);
-        bg.setStroke(null);
-        pane.getChildren().add(bg);
 
         if (!cell.isEmpty() && cell.getCandy() != null) {
             pane.getChildren().add(createCandyVisual(cell.getCandy()));
@@ -202,10 +207,9 @@ public class GameView {
     private StackPane createCandyVisual(Candy candy) {
         StackPane candyVisual = new StackPane();
 
-        String imagePath = candy.getType().getImagePath();
-        var stream = getClass().getResourceAsStream(imagePath);
-        if (stream != null) {
-            ImageView iv = new ImageView(new Image(stream));
+        Image cached = IMAGE_CACHE.get(candy.getType());
+        if (cached != null) {
+            ImageView iv = new ImageView(cached);
             iv.setFitWidth(CELL_SIZE - 16);
             iv.setFitHeight(CELL_SIZE - 16);
             iv.setPreserveRatio(true);
@@ -277,6 +281,8 @@ public class GameView {
 
     /**
      * Show a floating combo label above a given cell — animated scale + rise + fade.
+     * Uses the absolute-positioned {@code overlay} {@link Pane}; a managed StackPane
+     * would ignore layoutX/Y and centre the label.
      */
     public void showComboAt(Cell cell, String text) {
         StackPane pane = cellMap.get(cell);
@@ -291,12 +297,12 @@ public class GameView {
         );
 
         Bounds bounds = pane.localToScene(pane.getBoundsInLocal());
-        Point2D point = root.sceneToLocal(bounds.getMinX(), bounds.getMinY());
+        Point2D point = overlay.sceneToLocal(bounds.getMinX(), bounds.getMinY());
 
         combo.setLayoutX(point.getX() + pane.getWidth() / 2 - 30);
         combo.setLayoutY(point.getY() + pane.getHeight() / 2 - 10);
 
-        root.getChildren().add(combo);
+        overlay.getChildren().add(combo);
 
         ScaleTransition scale = new ScaleTransition(Duration.millis(250), combo);
         scale.setFromX(0.8);
@@ -312,22 +318,8 @@ public class GameView {
         fade.setToValue(0);
 
         ParallelTransition anim = new ParallelTransition(scale, move, fade);
-        anim.setOnFinished(e -> root.getChildren().remove(combo));
+        anim.setOnFinished(e -> overlay.getChildren().remove(combo));
         anim.play();
-    }
-
-    /**
-     * Update score display.
-     */
-    public void setScoreText(String text) {
-        scoreLabel.setText(text);
-    }
-
-    /**
-     * Update moves display.
-     */
-    public void setMovesText(String text) {
-        movesLabel.setText(text);
     }
 
     /**

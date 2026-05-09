@@ -1,0 +1,31 @@
+.restart-button {
+    -fx-background-color: #ff3b3b;
+    -fx-text-fill: white;
+    -fx-background-radius: 20;
+    -fx-cursor: hand;
+}
+
+.restart-button:hover {
+    -fx-background-color: #ff5c5c;
+    -fx-text-fill: white;
+    -fx-background-radius: 20;
+    -fx-cursor: hand;
+}
+
+.restart-button:pressed {
+    -fx-background-color: #cc0000;
+    -fx-text-fill: white;
+    -fx-background-radius: 20;
+}
+
+.mute-button {
+    -fx-background-color: transparent;
+    -fx-font-size: 14px;
+    -fx-cursor: hand;
+    -fx-padding: 2 8 2 8;
+}
+
+.mute-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+    -fx-background-radius: 12;
+}

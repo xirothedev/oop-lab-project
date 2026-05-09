@@ -7,7 +7,7 @@
 | Model       | `com.ooplab.candycrush.model`          | Board state, candies, match detection, scoring, game-state machine.         |
 | View        | `com.ooplab.candycrush.view`           | JavaFX rendering, cell panes, labels, restart button.                       |
 | Controller  | `com.ooplab.candycrush.controller`     | Player input, orchestration of swap → match → gravity → cascade → score.    |
-| Util        | `com.ooplab.candycrush.util`           | Cross-cutting: animation strategy, candy factory.                           |
+| Util        | `com.ooplab.candycrush.util`           | Cross-cutting: animation strategy, candy factory, audio (music + SFX).      |
 
 `Main` wires the four layers together (manual DI).
 
@@ -19,6 +19,7 @@
 | State     | `model.GameState`, `PlayingState`, `GameOverState`          | Each state owns its own `onEnter()` UI side-effect.                            |
 | Observer  | `model.ScoreManager` ⇒ JavaFX `IntegerProperty`             | `GameController.setupBindings()` registers listeners that push label updates. |
 | Strategy  | `util.AnimationManager` (interface) + `JavaFXAnimationManager` | Controller depends on the abstraction; tests can inject a synchronous stub.   |
+| Static facade | `util.MusicManager`, `util.SoundManager`                | Class-level static methods, not Singletons. `MusicManager` owns the BGM `MediaPlayer`; `SoundManager` caches `AudioClip` instances by key and exposes a mute toggle. Used directly by `Main` (BGM start), `GameController` (swap / match SFX), and `GameView` (click SFX). |
 
 ## Key types
 
@@ -30,9 +31,12 @@
 | `MatchResolution`   | Immutable result of one resolve step: cells to clear + special candies to spawn.                    |
 | `SpecialSpawn`      | Where to place a `StripedCandy` after a 4-match.                                                    |
 | `Candy` hierarchy   | `NormalCandy` and `StripedCandy(BlastDirection)`.                                                   |
+| `CandyType`         | Enum carrying color, symbol, and `imagePath` (for `ImageView` rendering with rectangle fallback).    |
 | `ScoreManager`      | Observable score + moves; `isGameOver()` when moves hit 0.                                          |
 | `GameController`    | Single owner of the cascade; flattened pipeline (`cascadeStep` → `applyResolutionAndContinue` → …). |
-| `GameView`          | Renders the grid into a `Map<Cell, StackPane>` so the controller can target animations by cell.     |
+| `GameView`          | Renders the grid into a `Map<Cell, StackPane>` so the controller can target animations by cell. Uses `bg.png` as scene background, candy `ImageView` children with rectangle fallback, styled restart button, and `showComboAt(...)` floating-label animation. |
+| `MusicManager`      | Static helper; `Main.start` calls `playBackgroundMusic()` once to begin the looping BGM.            |
+| `SoundManager`      | Static facade over a cached `Map<String, AudioClip>` plus mute toggle. Exposes `playSwap()`, `playMatch()`, `playClick()`. |
 
 ## Cascade pipeline
 

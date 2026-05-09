@@ -7,7 +7,7 @@ Match-3 game in Java 25 + JavaFX 25. Built as an OOP coursework demo for the
 
 - Java 25
 - Maven 3.8+
-- OpenJFX 25 (graphics + controls modules)
+- OpenJFX 25 (graphics + controls + media modules)
 
 ### Install
 
@@ -24,21 +24,27 @@ sudo apt install maven openjfx
 ```bash
 mvn compile           # compile only
 mvn test              # run the BoardTest suite
-./run.sh              # recommended launcher (sets module path)
+./run.sh              # recommended launcher; auto-detects platform classifier
 ```
 
 Manual launch (if `./run.sh` does not match your environment):
 
 ```bash
+# Example: macOS arm64 (mac-aarch64). For other platforms, swap the classifier
+# in each jar filename: mac, linux, linux-aarch64, win.
 JFX_LIB="$HOME/.m2/repository/org/openjfx"
 java \
-  --module-path "$JFX_LIB/javafx-base/25.0.2:$JFX_LIB/javafx-graphics/25.0.2:$JFX_LIB/javafx-controls/25.0.2" \
-  --add-modules javafx.controls \
-  --enable-native-access=javafx.graphics \
+  --module-path "$JFX_LIB/javafx-base/25.0.2/javafx-base-25.0.2-mac-aarch64.jar:$JFX_LIB/javafx-graphics/25.0.2/javafx-graphics-25.0.2-mac-aarch64.jar:$JFX_LIB/javafx-controls/25.0.2/javafx-controls-25.0.2-mac-aarch64.jar:$JFX_LIB/javafx-media/25.0.2/javafx-media-25.0.2-mac-aarch64.jar" \
+  --add-modules javafx.controls,javafx.media \
+  --enable-native-access=javafx.graphics,javafx.media \
   --add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED \
-  -cp target/classes \
+  -cp target/classes:target/resources \
   com.ooplab.candycrush.Main
 ```
+
+Pointing `--module-path` at platform-specific jar files (instead of the parent
+directories) avoids Java's "Two versions of module" error when both the
+classifier jar and the non-classifier stub jar are on the path.
 
 ## Project structure
 
@@ -67,9 +73,23 @@ src/main/java/com/ooplab/candycrush/
 ├── util/
 │   ├── AnimationManager.java        # Animation strategy interface
 │   ├── JavaFXAnimationManager.java  # JavaFX implementation
-│   └── CandyFactory.java            # Factory; static create / createRandom
+│   ├── CandyFactory.java            # Factory; static create / createRandom
+│   ├── MusicManager.java            # Static BGM loop control
+│   └── SoundManager.java            # Static SFX facade with cache + mute toggle
 └── view/
     └── GameView.java                # JavaFX rendering + cell map for animations
+
+src/main/resources/
+├── images/                          # Candy + background sprites
+│   ├── bg.png                       # Scene background
+│   ├── blue.png  green.png  orange.png
+│   └── purple.png  red.png  yellow.png
+├── music/
+│   └── bgm.mp3                      # Looping background music
+└── sfx/
+    ├── click.wav                    # Restart button
+    ├── match.wav                    # Cascade step removal
+    └── swap.wav                     # Adjacent swap
 
 src/test/java/com/ooplab/candycrush/model/
 └── BoardTest.java                   # Match resolution + striped candy behavior
@@ -83,6 +103,12 @@ src/test/java/com/ooplab/candycrush/model/
 | State     | `model.GameState` + `PlayingState` + `GameOverState`        | Each state injects its own collaborators and owns the `onEnter()` side-effect.       |
 | Observer  | `model.ScoreManager` ⇒ JavaFX `IntegerProperty`             | `GameController` registers listeners that push score / moves into the view.         |
 | Strategy  | `util.AnimationManager` interface                           | `GameController` depends on the abstraction; `JavaFXAnimationManager` is the impl.  |
+
+### Audio + assets
+
+- `util.MusicManager` — static helper; `Main` calls `playBackgroundMusic()` once at startup to start the looping BGM.
+- `util.SoundManager` — static facade with an internal `AudioClip` cache and a mute toggle. `GameController` triggers `playSwap()` / `playMatch()`; `GameView` triggers `playClick()` from the restart button.
+- `CandyType` carries an `imagePath` alongside its color/symbol; `GameView` renders each candy as an `ImageView`, falling back to a colored rectangle if the image fails to load. The `bg.png` image is set as the StackPane background, and matches show a floating combo label via `GameView.showComboAt(...)`.
 
 ## Game rules
 

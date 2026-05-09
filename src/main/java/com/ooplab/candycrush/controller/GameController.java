@@ -31,6 +31,15 @@ public class GameController {
     private Cell selectedCell;
     private final AtomicBoolean isAnimating = new AtomicBoolean(false);
 
+    // Track the current player swap so the first cascade step can anchor combo labels
+    // on the moved candy. Both reset to null once the cascade chain begins follow-ups.
+    private Cell swapFrom;
+    private Cell swapTo;
+
+    // Depth of the current cascade chain. Reset at the start of each player move.
+    // Incremented once per cascadeStep; values >= 2 trigger "xN CHAIN!" labels.
+    private int cascadeDepth;
+
     public GameController(Board board, ScoreManager scoreManager, GameView view) {
         this(board, scoreManager, view, new JavaFXAnimationManager());
     }
@@ -56,12 +65,7 @@ public class GameController {
     }
 
     private void setupBindings() {
-        scoreManager.scoreProperty().addListener((obs, oldVal, newVal) ->
-                view.setScoreText("Score: " + newVal)
-        );
-        scoreManager.movesProperty().addListener((obs, oldVal, newVal) ->
-                view.setMovesText("Moves: " + newVal)
-        );
+        view.bindScoreAndMoves(scoreManager.scoreProperty(), scoreManager.movesProperty());
     }
 
     private void handleCellClick(Cell clicked) {
@@ -104,6 +108,12 @@ public class GameController {
         isAnimating.set(true);
         view.setAnimating(true);
 
+        // Start of a new player move: remember the swap pair (anchor candidate for combo
+        // labels) and reset the cascade-depth counter.
+        swapFrom = a;
+        swapTo = b;
+        cascadeDepth = 0;
+
         SoundManager.playSwap();
 
         StackPane paneA = view.getCellPane(a);
@@ -141,9 +151,65 @@ public class GameController {
             finishCascade();
             return;
         }
+        cascadeDepth++;
+
+        int clearedSize = resolution.clearedCells().size();
+        String label = pickComboLabel(clearedSize, cascadeDepth);
+        if (label != null) {
+            Cell anchor = pickComboAnchor(resolution, swapFrom, swapTo);
+            if (anchor != null) {
+                view.showComboAt(anchor, label);
+            }
+        }
+
+        // Swap context only applies to the first cascade step (the player move itself).
+        // Clear it so subsequent cascades fall back to the resolution's first cleared cell.
+        swapFrom = null;
+        swapTo = null;
+
         SoundManager.playMatch();
         animationManager.playRemoval(collectPanes(resolution.clearedCells()),
                 () -> applyResolutionAndContinue(resolution));
+    }
+
+    /**
+     * Choose a combo-label anchor cell. Prefer a swap endpoint when this is the first
+     * cascade step of a move and the swap cell is part of the cleared set. Otherwise fall
+     * back to the first cleared cell.
+     */
+    private Cell pickComboAnchor(MatchResolution resolution, Cell from, Cell to) {
+        var cleared = resolution.clearedCells();
+        if (cleared.isEmpty()) {
+            return null;
+        }
+        if (to != null && cleared.contains(to)) {
+            return to;
+        }
+        if (from != null && cleared.contains(from)) {
+            return from;
+        }
+        return cleared.iterator().next();
+    }
+
+    /**
+     * Choose a combo label by tier. Cascade-chain labels (depth >= 2) take priority and
+     * provide feedback on chained drops; otherwise fall back to size-based tiers.
+     * Returns {@code null} when no popup should be shown.
+     */
+    private String pickComboLabel(int clearedSize, int depth) {
+        if (depth >= 2) {
+            return "x" + depth + " CHAIN!";
+        }
+        if (clearedSize >= 9) {
+            return "MEGA!";
+        }
+        if (clearedSize >= 6) {
+            return "GREAT!";
+        }
+        if (clearedSize >= 4) {
+            return "COMBO!";
+        }
+        return null;
     }
 
     private void finishCascade() {
@@ -254,6 +320,9 @@ public class GameController {
         board.reset();
         scoreManager.reset();
         selectedCell = null;
+        swapFrom = null;
+        swapTo = null;
+        cascadeDepth = 0;
         isAnimating.set(false);
         view.setAnimating(false);
         view.renderBoard(board, this::handleCellClick);
@@ -261,8 +330,7 @@ public class GameController {
     }
 
     private void refreshView() {
-        view.setScoreText("Score: " + scoreManager.getScore());
-        view.setMovesText("Moves: " + scoreManager.getMoves());
+        // Score/moves labels are bound via view.bindScoreAndMoves; only status needs reset here.
         view.setStatusText("");
     }
 }

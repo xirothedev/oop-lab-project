@@ -4,8 +4,12 @@ import javafx.scene.media.AudioClip;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class SoundManager {
+
+    private static final Logger LOGGER = Logger.getLogger(SoundManager.class.getName());
 
     private static double volume = 0.3;
     private static boolean muted = false;
@@ -28,7 +32,7 @@ public class SoundManager {
             AudioClip clip = cache.computeIfAbsent(path, p -> {
                 var url = SoundManager.class.getResource(p);
                 if (url == null) {
-                    System.out.println("Sound NOT FOUND: " + p);
+                    LOGGER.warning("Sound resource missing: " + p);
                     return null;
                 }
                 return new AudioClip(url.toExternalForm());
@@ -40,7 +44,7 @@ public class SoundManager {
             }
 
         } catch (Exception e) {
-            System.out.println("Sound error: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Sound playback error", e);
         }
     }
 

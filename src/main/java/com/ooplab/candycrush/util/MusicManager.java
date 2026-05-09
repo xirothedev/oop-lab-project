@@ -3,7 +3,12 @@ package com.ooplab.candycrush.util;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 public class MusicManager {
+
+    private static final Logger LOGGER = Logger.getLogger(MusicManager.class.getName());
 
     private static MediaPlayer player;
 
@@ -12,7 +17,7 @@ public class MusicManager {
             var url = MusicManager.class.getResource("/music/bgm.mp3");
 
             if (url == null) {
-                System.out.println("BGM not found!");
+                LOGGER.warning("Background music resource missing: /music/bgm.mp3");
                 return;
             }
 
@@ -24,7 +29,7 @@ public class MusicManager {
             player.play();
 
         } catch (Exception e) {
-            System.out.println("BGM error: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Background music error", e);
         }
     }
 

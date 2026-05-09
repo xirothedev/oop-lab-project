@@ -7,6 +7,7 @@ import javafx.animation.RotateTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.SequentialTransition;
 import javafx.animation.TranslateTransition;
+import com.ooplab.candycrush.view.GameView;
 import javafx.scene.Node;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
@@ -27,7 +28,7 @@ import java.util.Map;
  */
 public class JavaFXAnimationManager implements AnimationManager {
 
-    private static final double CELL_PITCH = 63.0; // CELL_SIZE(60) + GAP(3)
+    private static final double CELL_PITCH = GameView.CELL_SIZE + GameView.GAP;
 
     private static final Duration SWAP_DURATION = Duration.millis(220);
     private static final Duration PULSE_DURATION = Duration.millis(140);
@@ -50,8 +51,8 @@ public class JavaFXAnimationManager implements AnimationManager {
         int rowA = safeRow(paneA);
         int rowB = safeRow(paneB);
 
-        double deltaX = (colB - colA) * (paneA.getPrefWidth() + 3);
-        double deltaY = (rowB - rowA) * (paneA.getPrefHeight() + 3);
+        double deltaX = (colB - colA) * (paneA.getPrefWidth() + GameView.GAP);
+        double deltaY = (rowB - rowA) * (paneA.getPrefHeight() + GameView.GAP);
 
         TranslateTransition translateA = new TranslateTransition(SWAP_DURATION, paneA);
         translateA.setToX(deltaX);
