@@ -3,6 +3,7 @@ package com.ooplab.candycrush.controller;
 import com.ooplab.candycrush.model.*;
 import com.ooplab.candycrush.util.AnimationManager;
 import com.ooplab.candycrush.util.JavaFXAnimationManager;
+import com.ooplab.candycrush.util.SoundManager;
 import com.ooplab.candycrush.view.GameView;
 import javafx.scene.layout.StackPane;
 
@@ -103,6 +104,8 @@ public class GameController {
         isAnimating.set(true);
         view.setAnimating(true);
 
+        SoundManager.playSwap();
+
         StackPane paneA = view.getCellPane(a);
         StackPane paneB = view.getCellPane(b);
 
@@ -138,6 +141,7 @@ public class GameController {
             finishCascade();
             return;
         }
+        SoundManager.playMatch();
         animationManager.playRemoval(collectPanes(resolution.clearedCells()),
                 () -> applyResolutionAndContinue(resolution));
     }

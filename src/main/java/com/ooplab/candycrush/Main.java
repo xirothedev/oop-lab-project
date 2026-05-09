@@ -3,6 +3,7 @@ package com.ooplab.candycrush;
 import com.ooplab.candycrush.controller.GameController;
 import com.ooplab.candycrush.model.Board;
 import com.ooplab.candycrush.model.ScoreManager;
+import com.ooplab.candycrush.util.MusicManager;
 import com.ooplab.candycrush.view.GameView;
 import javafx.application.Application;
 import javafx.stage.Stage;
@@ -15,6 +16,8 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        MusicManager.playBackgroundMusic();
+
         // Create model components
         Board board = new Board();
         ScoreManager scoreManager = new ScoreManager();
