@@ -1,0 +1,342 @@
+package com.ooplab.candycrush.controller;
+
+import com.ooplab.candycrush.model.*;
+import com.ooplab.candycrush.util.AnimationManager;
+import com.ooplab.candycrush.util.JavaFXAnimationManager;
+import com.ooplab.candycrush.util.SoundManager;
+import com.ooplab.candycrush.view.GameView;
+import javafx.scene.Node;
+import javafx.scene.layout.StackPane;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Controller: handles player input, coordinates game logic between model and view.
+ * Manages the full game flow with animations: swap → match check → gravity → cascade → score → game over.
+ */
+public class GameController {
+    private final Board board;
+    private final ScoreManager scoreManager;
+    private final GameView view;
+    private final AnimationManager animationManager;
+
+    private GameState state;
+    private final GameState playingState;
+    private final GameState gameOverState;
+
+    private Cell selectedCell;
+    private final AtomicBoolean isAnimating = new AtomicBoolean(false);
+
+    // Track the current player swap so the first cascade step can anchor combo labels
+    // on the moved candy. Both reset to null once the cascade chain begins follow-ups.
+    private Cell swapFrom;
+    private Cell swapTo;
+
+    // Depth of the current cascade chain. Reset at the start of each player move.
+    // Incremented once per cascadeStep; values >= 2 trigger "xN CHAIN!" labels.
+    private int cascadeDepth;
+
+    public GameController(Board board, ScoreManager scoreManager, GameView view) {
+        this(board, scoreManager, view, new JavaFXAnimationManager());
+    }
+
+    public GameController(Board board, ScoreManager scoreManager, GameView view, AnimationManager animationManager) {
+        this.board = board;
+        this.scoreManager = scoreManager;
+        this.view = view;
+        this.animationManager = animationManager;
+
+        this.playingState = new PlayingState(view);
+        this.gameOverState = new GameOverState(view, scoreManager);
+        this.state = playingState;
+
+        setupView();
+        setupBindings();
+        refreshView();
+    }
+
+    private void setupView() {
+        view.renderBoard(board, this::handleCellClick);
+        view.setOnRestart(this::restart);
+    }
+
+    private void setupBindings() {
+        view.bindScoreAndMoves(scoreManager.scoreProperty(), scoreManager.movesProperty());
+    }
+
+    private void handleCellClick(Cell clicked) {
+        if (!state.canPlay() || isAnimating.get()) {
+            return;
+        }
+
+        if (selectedCell == null) {
+            selectedCell = clicked;
+            view.highlightCell(clicked);
+            view.setStatusText("");
+            return;
+        }
+
+        Cell first = selectedCell;
+        selectedCell = null;
+
+        if (first == clicked) {
+            view.clearSelection();
+            view.setStatusText("");
+            return;
+        }
+
+        if (isAdjacent(first, clicked)) {
+            attemptSwap(first, clicked);
+        } else {
+            selectedCell = clicked;
+            view.highlightCell(clicked);
+            view.setStatusText("");
+        }
+    }
+
+    private boolean isAdjacent(Cell a, Cell b) {
+        int rowDiff = Math.abs(a.getRow() - b.getRow());
+        int colDiff = Math.abs(a.getCol() - b.getCol());
+        return (rowDiff + colDiff) == 1;
+    }
+
+    private void attemptSwap(Cell a, Cell b) {
+        isAnimating.set(true);
+        view.setAnimating(true);
+
+        // Start of a new player move: remember the swap pair (anchor candidate for combo
+        // labels) and reset the cascade-depth counter.
+        swapFrom = a;
+        swapTo = b;
+        cascadeDepth = 0;
+
+        SoundManager.playSwap();
+
+        StackPane paneA = view.getCellPane(a);
+        StackPane paneB = view.getCellPane(b);
+
+        animationManager.playSwap(paneA, paneB, () -> resolveSwap(a, b, paneA, paneB));
+    }
+
+    private void resolveSwap(Cell a, Cell b, StackPane paneA, StackPane paneB) {
+        board.swap(a, b);
+        view.renderBoard(board, this::handleCellClick);
+        MatchResolution resolution = board.resolveMatches(a, b, true);
+
+        if (resolution.isEmpty()) {
+            board.swap(a, b);
+            animationManager.playSwapBack(paneA, paneB, this::onInvalidSwap);
+            return;
+        }
+
+        cascadeStep(resolution);
+    }
+
+    private void onInvalidSwap() {
+        view.renderBoard(board, this::handleCellClick);
+        view.setStatusText("Invalid move!");
+        unlockInput();
+    }
+
+    /**
+     * One step of the cascade. The chain is:
+     *   removal animation → apply model changes → gravity animation → spawn animation → next cascade step.
+     * Each phase is a small private method so the flow reads top-to-bottom rather than nesting.
+     */
+    private void cascadeStep(MatchResolution resolution) {
+        if (resolution.isEmpty()) {
+            finishCascade();
+            return;
+        }
+        cascadeDepth++;
+
+        int clearedSize = resolution.clearedCells().size();
+        String label = pickComboLabel(clearedSize, cascadeDepth);
+        if (label != null) {
+            Cell anchor = pickComboAnchor(resolution, swapFrom, swapTo);
+            if (anchor != null) {
+                view.showComboAt(anchor, label);
+            }
+        }
+
+        // Swap context only applies to the first cascade step (the player move itself).
+        // Clear it so subsequent cascades fall back to the resolution's first cleared cell.
+        swapFrom = null;
+        swapTo = null;
+
+        SoundManager.playMatch();
+        animationManager.playRemoval(collectPanes(resolution.clearedCells()),
+                () -> applyResolutionAndContinue(resolution));
+    }
+
+    /**
+     * Choose a combo-label anchor cell. Prefer a swap endpoint when this is the first
+     * cascade step of a move and the swap cell is part of the cleared set. Otherwise fall
+     * back to the first cleared cell.
+     */
+    private Cell pickComboAnchor(MatchResolution resolution, Cell from, Cell to) {
+        var cleared = resolution.clearedCells();
+        if (cleared.isEmpty()) {
+            return null;
+        }
+        if (to != null && cleared.contains(to)) {
+            return to;
+        }
+        if (from != null && cleared.contains(from)) {
+            return from;
+        }
+        return cleared.iterator().next();
+    }
+
+    /**
+     * Choose a combo label by tier. Cascade-chain labels (depth >= 2) take priority and
+     * provide feedback on chained drops; otherwise fall back to size-based tiers.
+     * Returns {@code null} when no popup should be shown.
+     */
+    private String pickComboLabel(int clearedSize, int depth) {
+        if (depth >= 2) {
+            return "x" + depth + " CHAIN!";
+        }
+        if (clearedSize >= 9) {
+            return "MEGA!";
+        }
+        if (clearedSize >= 6) {
+            return "GREAT!";
+        }
+        if (clearedSize >= 4) {
+            return "COMBO!";
+        }
+        return null;
+    }
+
+    private void finishCascade() {
+        scoreManager.useMove();
+        view.renderBoard(board, this::handleCellClick);
+        unlockInput();
+
+        if (scoreManager.isGameOver()) {
+            transitionTo(gameOverState);
+        }
+    }
+
+    private void applyResolutionAndContinue(MatchResolution resolution) {
+        board.applyMatchResolution(resolution);
+        scoreManager.addScore(resolution.clearedCells().size() + resolution.specialSpawns().size());
+
+        Map<Cell, Integer> gravityDrops = board.applyGravity();
+        List<Cell> newCells = collectEmptyCells();
+        board.fillEmpty();
+
+        view.renderBoard(board, this::handleCellClick);
+
+        Map<StackPane, Integer> dropDistances = mapDropPanes(gravityDrops);
+        dropDistances.keySet().forEach(pane -> {
+            Node candy = pane.getChildren().get(0);
+            if (candy != null) candy.setOpacity(0);
+        });
+        List<StackPane> spawnPanes = new ArrayList<>();
+        Map<StackPane, Integer> spawnRows = new HashMap<>();
+        mapSpawnPanes(newCells, spawnPanes, spawnRows);
+
+        MatchResolution next = board.resolveMatches(null, null, false);
+        runGravityThenSpawn(dropDistances, spawnPanes, spawnRows, () -> cascadeStep(next));
+    }
+
+    private void runGravityThenSpawn(
+            Map<StackPane, Integer> dropDistances,
+            List<StackPane> spawnPanes,
+            Map<StackPane, Integer> spawnRows,
+            Runnable next) {
+        Runnable spawnPhase = () -> {
+            if (spawnPanes.isEmpty()) {
+                next.run();
+            } else {
+                animationManager.playSpawn(spawnPanes, spawnRows, next);
+            }
+        };
+
+        if (dropDistances.isEmpty()) {
+            spawnPhase.run();
+        } else {
+            animationManager.playGravity(dropDistances, spawnPhase);
+        }
+    }
+
+    private List<StackPane> collectPanes(Collection<Cell> cells) {
+        List<StackPane> panes = new ArrayList<>();
+        for (Cell cell : cells) {
+            StackPane pane = view.getCellPane(cell);
+            if (pane != null) {
+                panes.add(pane);
+            }
+        }
+        return panes;
+    }
+
+    private List<Cell> collectEmptyCells() {
+        List<Cell> empties = new ArrayList<>();
+        for (int r = 0; r < Board.SIZE; r++) {
+            for (int c = 0; c < Board.SIZE; c++) {
+                Cell cell = board.getCell(r, c);
+                if (cell.isEmpty()) {
+                    empties.add(cell);
+                }
+            }
+        }
+        return empties;
+    }
+
+    private Map<StackPane, Integer> mapDropPanes(Map<Cell, Integer> gravityDrops) {
+        Map<StackPane, Integer> dropDistances = new HashMap<>();
+        for (Map.Entry<Cell, Integer> entry : gravityDrops.entrySet()) {
+            StackPane pane = view.getCellPane(entry.getKey());
+            if (pane != null) {
+                dropDistances.put(pane, entry.getValue());
+            }
+        }
+        return dropDistances;
+    }
+
+    private void mapSpawnPanes(List<Cell> newCells, List<StackPane> spawnPanes, Map<StackPane, Integer> spawnRows) {
+        for (Cell cell : newCells) {
+            StackPane pane = view.getCellPane(cell);
+            if (pane != null) {
+                spawnPanes.add(pane);
+                spawnRows.put(pane, cell.getRow());
+            }
+        }
+    }
+
+    private void unlockInput() {
+        isAnimating.set(false);
+        view.setAnimating(false);
+    }
+
+    private void transitionTo(GameState newState) {
+        state = newState;
+        state.onEnter();
+    }
+
+    private void restart() {
+        board.reset();
+        scoreManager.reset();
+        selectedCell = null;
+        swapFrom = null;
+        swapTo = null;
+        cascadeDepth = 0;
+        isAnimating.set(false);
+        view.setAnimating(false);
+        view.renderBoard(board, this::handleCellClick);
+        transitionTo(playingState);
+    }
+
+    private void refreshView() {
+        // Score/moves labels are bound via view.bindScoreAndMoves; only status needs reset here.
+        view.setStatusText("");
+    }
+}
