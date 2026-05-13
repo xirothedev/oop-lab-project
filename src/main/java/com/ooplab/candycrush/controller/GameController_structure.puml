@@ -1,0 +1,290 @@
+@startuml
+
+/' diagram meta data start
+config=StructureConfiguration;
+{
+  "projectClassification": {
+    "searchMode": "OpenProject", // OpenProject, AllProjects
+    "includedProjects": "",
+    "pathEndKeywords": "*.impl",
+    "isClientPath": "",
+    "isClientName": "",
+    "isTestPath": "",
+    "isTestName": "",
+    "isMappingPath": "",
+    "isMappingName": "",
+    "isDataAccessPath": "",
+    "isDataAccessName": "",
+    "isDataStructurePath": "",
+    "isDataStructureName": "",
+    "isInterfaceStructuresPath": "",
+    "isInterfaceStructuresName": "",
+    "isEntryPointPath": "",
+    "isEntryPointName": "",
+    "treatFinalFieldsAsMandatory": false
+  },
+  "graphRestriction": {
+    "classPackageExcludeFilter": "",
+    "classPackageIncludeFilter": "",
+    "classNameExcludeFilter": "",
+    "classNameIncludeFilter": "",
+    "methodNameExcludeFilter": "",
+    "methodNameIncludeFilter": "",
+    "removeByInheritance": "", // inheritance/annotation based filtering is done in a second step
+    "removeByAnnotation": "",
+    "removeByClassPackage": "", // cleanup the graph after inheritance/annotation based filtering is done
+    "removeByClassName": "",
+    "cutMappings": false,
+    "cutEnum": true,
+    "cutTests": true,
+    "cutClient": true,
+    "cutDataAccess": true,
+    "cutInterfaceStructures": true,
+    "cutDataStructures": true,
+    "cutGetterAndSetter": true,
+    "cutConstructors": true
+  },
+  "graphTraversal": {
+    "forwardDepth": 1,
+    "backwardDepth": 3,
+    "classPackageExcludeFilter": "",
+    "classPackageIncludeFilter": "",
+    "classNameExcludeFilter": "",
+    "classNameIncludeFilter": "",
+    "methodNameExcludeFilter": "",
+    "methodNameIncludeFilter": "",
+    "hideMappings": false,
+    "hideDataStructures": false,
+    "hidePrivateMethods": true,
+    "hideInterfaceCalls": true, // indirection: implementation -> interface (is hidden) -> implementation
+    "onlyShowApplicationEntryPoints": false, // root node is included
+    "useMethodCallsForStructureDiagram": "ForwardOnly" // ForwardOnly, BothDirections, No
+  },
+  "details": {
+    "aggregation": "GroupByClass", // ByClass, GroupByClass, None
+    "showClassGenericTypes": true,
+    "showMethods": true,
+    "showMethodParameterNames": true,
+    "showMethodParameterTypes": true,
+    "showMethodReturnType": true,
+    "showPackageLevels": 2,
+    "showDetailedClassStructure": true
+  },
+  "rootClass": "com.ooplab.candycrush.controller.GameController",
+  "extensionCallbackMethod": "" // qualified.class.name#methodName - signature: public static String method(String)
+}
+diagram meta data end '/
+
+
+
+digraph g {
+    rankdir="TB"
+    splines=polyline
+    
+
+'nodes 
+subgraph cluster_1011177219 { 
+   	label=ooplab
+	labeljust=l
+	fillcolor="#ececec"
+	style=filled
+   
+   subgraph cluster_995963655 { 
+   	label=candycrush
+	labeljust=l
+	fillcolor="#d8d8d8"
+	style=filled
+   
+   Board1361677291[
+	label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0">
+<TR><TD ALIGN="LEFT" >(C)Board</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >-   candySupplier: Supplier&lt;Candy&gt; [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   grid: Cell[][] [0..*]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   matchFinder: MatchFinder [0..1]</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >+ applyGravity(): Map&lt;Cell, Integer&gt;</TD></TR>
+<TR><TD ALIGN="LEFT" >+ applyMatchResolution(resolution: MatchResolution)</TD></TR>
+<TR><TD ALIGN="LEFT" >- countRunMemberships(runs: List&lt;MatchRun&gt;): Map&lt;Cell, Integer&gt;</TD></TR>
+<TR><TD ALIGN="LEFT" >- createSpecialSpawn(run: MatchRun, swapFrom: Cell, swapTo: Cell, fromPlayerSwap: boolean, runMemberships: Map&lt;Cell, Integer&gt;): SpecialSpawn</TD></TR>
+<TR><TD ALIGN="LEFT" >- enqueueStripedIfPresent(cell: Cell, pendingStripedTriggers: Deque&lt;Cell&gt;)</TD></TR>
+<TR><TD ALIGN="LEFT" >- enqueueTriggeredStripedMatches(clearedCells: Set&lt;Cell&gt;, reservedSpawnCells: Set&lt;Cell&gt;, pendingStripedTriggers: Deque&lt;Cell&gt;)</TD></TR>
+<TR><TD ALIGN="LEFT" >- expandStripedTriggers(clearedCells: Set&lt;Cell&gt;, reservedSpawnCells: Set&lt;Cell&gt;, pendingStripedTriggers: Deque&lt;Cell&gt;)</TD></TR>
+<TR><TD ALIGN="LEFT" >+ fillEmpty()</TD></TR>
+<TR><TD ALIGN="LEFT" >+ getCell(row: int, col: int): Cell</TD></TR>
+<TR><TD ALIGN="LEFT" >- hasRunOverlap(run: MatchRun, runMemberships: Map&lt;Cell, Integer&gt;): boolean</TD></TR>
+<TR><TD ALIGN="LEFT" >- includeBlastCell(row: int, col: int, clearedCells: Set&lt;Cell&gt;, reservedSpawnCells: Set&lt;Cell&gt;, pendingStripedTriggers: Deque&lt;Cell&gt;)</TD></TR>
+<TR><TD ALIGN="LEFT" >- initializeGrid()</TD></TR>
+<TR><TD ALIGN="LEFT" >- pickSwapAnchor(run: MatchRun, swapFrom: Cell, swapTo: Cell): Cell</TD></TR>
+<TR><TD ALIGN="LEFT" >- randomizeAllCells()</TD></TR>
+<TR><TD ALIGN="LEFT" >+ reset()</TD></TR>
+<TR><TD ALIGN="LEFT" >+ resolveMatches(swapFrom: Cell, swapTo: Cell, fromPlayerSwap: boolean): MatchResolution</TD></TR>
+<TR><TD ALIGN="LEFT" >+ swap(a: Cell, b: Cell)</TD></TR>
+</TABLE>>
+	style=filled
+	margin=0
+	shape=plaintext
+	fillcolor="#FFFFFF"
+];
+
+Cell1361677291[
+	label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0">
+<TR><TD ALIGN="LEFT" >(C)Cell</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >-   candy: Candy [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   col: int [1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   row: int [1]</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >+ clear()</TD></TR>
+</TABLE>>
+	style=filled
+	margin=0
+	shape=plaintext
+	fillcolor="#FFFFFF"
+];
+
+GameController354509264[
+	label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0">
+<TR><TD ALIGN="LEFT" >(C)GameController</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >-   animationManager: AnimationManager [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   board: Board [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   cascadeDepth: int [1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   gameOverState: GameState [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   isAnimating: AtomicBoolean [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   playingState: GameState [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   scoreManager: ScoreManager [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   selectedCell: Cell [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   state: GameState [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   swapFrom: Cell [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   swapTo: Cell [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   view: GameView [0..1]</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >- applyResolutionAndContinue(resolution: MatchResolution)</TD></TR>
+<TR><TD ALIGN="LEFT" >- attemptSwap(a: Cell, b: Cell)</TD></TR>
+<TR><TD ALIGN="LEFT" >- cascadeStep(resolution: MatchResolution)</TD></TR>
+<TR><TD ALIGN="LEFT" >- collectEmptyCells(): List&lt;Cell&gt;</TD></TR>
+<TR><TD ALIGN="LEFT" >- collectPanes(cells: Collection&lt;Cell&gt;): List&lt;StackPane&gt;</TD></TR>
+<TR><TD ALIGN="LEFT" >- finishCascade()</TD></TR>
+<TR><TD ALIGN="LEFT" >- handleCellClick(clicked: Cell)</TD></TR>
+<TR><TD ALIGN="LEFT" >- isAdjacent(a: Cell, b: Cell): boolean</TD></TR>
+<TR><TD ALIGN="LEFT" >- mapDropPanes(gravityDrops: Map&lt;Cell, Integer&gt;): Map&lt;StackPane, Integer&gt;</TD></TR>
+<TR><TD ALIGN="LEFT" >- mapSpawnPanes(newCells: List&lt;Cell&gt;, spawnPanes: List&lt;StackPane&gt;, spawnRows: Map&lt;StackPane, Integer&gt;)</TD></TR>
+<TR><TD ALIGN="LEFT" >- onInvalidSwap()</TD></TR>
+<TR><TD ALIGN="LEFT" >- pickComboAnchor(resolution: MatchResolution, from: Cell, to: Cell): Cell</TD></TR>
+<TR><TD ALIGN="LEFT" >- pickComboLabel(clearedSize: int, depth: int): String</TD></TR>
+<TR><TD ALIGN="LEFT" >- refreshView()</TD></TR>
+<TR><TD ALIGN="LEFT" >- resolveSwap(a: Cell, b: Cell, paneA: StackPane, paneB: StackPane)</TD></TR>
+<TR><TD ALIGN="LEFT" >- restart()</TD></TR>
+<TR><TD ALIGN="LEFT" >- runGravityThenSpawn(dropDistances: Map&lt;StackPane, Integer&gt;, spawnPanes: List&lt;StackPane&gt;, spawnRows: Map&lt;StackPane, Integer&gt;, next: Runnable)</TD></TR>
+<TR><TD ALIGN="LEFT" >- transitionTo(newState: GameState)</TD></TR>
+<TR><TD ALIGN="LEFT" >- unlockInput()</TD></TR>
+</TABLE>>
+	style=filled
+	margin=0
+	shape=plaintext
+	fillcolor="#FFFFFF"
+];
+
+GameView371979321[
+	label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0">
+<TR><TD ALIGN="LEFT" >(C)GameView</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >-   boardGrid: GridPane [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   cellMap: Map&lt;Cell, StackPane&gt; [0..*]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   isAnimating: boolean [1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   mainLayout: BorderPane [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   movesLabel: Label [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   muteButton: Button [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   overlay: Pane [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   restartButton: Button [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   root: StackPane [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   scoreLabel: Label [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   stage: Stage [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   statusLabel: Label [0..1]</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >- addStripedOverlay(candyVisual: StackPane, dir: BlastDirection)</TD></TR>
+<TR><TD ALIGN="LEFT" >+ bindScoreAndMoves(scoreProperty: IntegerProperty, movesProperty: IntegerProperty)</TD></TR>
+<TR><TD ALIGN="LEFT" >+ clearSelection()</TD></TR>
+<TR><TD ALIGN="LEFT" >- createCandyVisual(candy: Candy): StackPane</TD></TR>
+<TR><TD ALIGN="LEFT" >- createCellPane(cell: Cell): StackPane</TD></TR>
+<TR><TD ALIGN="LEFT" >+ getCellPane(cell: Cell): StackPane</TD></TR>
+<TR><TD ALIGN="LEFT" >+ highlightCell(cell: Cell)</TD></TR>
+<TR><TD ALIGN="LEFT" >+ renderBoard(board: Board, onCellClick: Consumer&lt;Cell&gt;)</TD></TR>
+<TR><TD ALIGN="LEFT" >+ show()</TD></TR>
+<TR><TD ALIGN="LEFT" >+ showComboAt(cell: Cell, text: String)</TD></TR>
+</TABLE>>
+	style=filled
+	margin=0
+	shape=plaintext
+	fillcolor="#FFFFFF"
+];
+
+MatchResolution1361677291[
+	label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0">
+<TR><TD ALIGN="LEFT" >(C)MatchResolution</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >-   clearedCells: Set&lt;Cell&gt; [0..*]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   specialSpawns: List&lt;SpecialSpawn&gt; [0..*]</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >+ clearedCells(): Set&lt;Cell&gt;</TD></TR>
+<TR><TD ALIGN="LEFT" >+ specialSpawns(): List&lt;SpecialSpawn&gt;</TD></TR>
+</TABLE>>
+	style=filled
+	margin=0
+	shape=plaintext
+	fillcolor="#FFFFFF"
+];
+
+ScoreManager1361677291[
+	label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0">
+<TR><TD ALIGN="LEFT" >(C)ScoreManager</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >-   moves: IntegerProperty [0..1]</TD></TR>
+<TR><TD ALIGN="LEFT" >-   score: IntegerProperty [0..1]</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >+ addScore(matchCount: int)</TD></TR>
+<TR><TD ALIGN="LEFT" >+ movesProperty(): IntegerProperty</TD></TR>
+<TR><TD ALIGN="LEFT" >+ reset()</TD></TR>
+<TR><TD ALIGN="LEFT" >+ scoreProperty(): IntegerProperty</TD></TR>
+<TR><TD ALIGN="LEFT" >+ useMove()</TD></TR>
+</TABLE>>
+	style=filled
+	margin=0
+	shape=plaintext
+	fillcolor="#FFFFFF"
+];
+
+SoundManager371960214[
+	label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0">
+<TR><TD ALIGN="LEFT" >(C)SoundManager</TD></TR>
+<HR/>
+<TR><TD ALIGN="LEFT" >- play(path: String)</TD></TR>
+<TR><TD ALIGN="LEFT" >+ playClick()</TD></TR>
+<TR><TD ALIGN="LEFT" >+ playMatch()</TD></TR>
+<TR><TD ALIGN="LEFT" >+ playSwap()</TD></TR>
+</TABLE>>
+	style=filled
+	margin=0
+	shape=plaintext
+	fillcolor="#FFFFFF"
+];
+} 
+} 
+
+'edges    
+GameController354509264 -> Board1361677291[label="board
+[0..1]"];
+GameController354509264 -> Cell1361677291[label="selectedCell
+[0..1]"];
+GameController354509264 -> Cell1361677291[label="swapFrom
+[0..1]"];
+GameController354509264 -> Cell1361677291[label="swapTo
+[0..1]"];
+GameController354509264 -> GameView371979321[label="view
+[0..1]"];
+GameController354509264 -> ScoreManager1361677291[label="scoreManager
+[0..1]"];
+    
+}
+@enduml

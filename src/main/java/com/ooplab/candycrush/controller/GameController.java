@@ -5,6 +5,7 @@ import com.ooplab.candycrush.util.AnimationManager;
 import com.ooplab.candycrush.util.JavaFXAnimationManager;
 import com.ooplab.candycrush.util.SoundManager;
 import com.ooplab.candycrush.view.GameView;
+import javafx.scene.Node;
 import javafx.scene.layout.StackPane;
 
 import java.util.ArrayList;
@@ -124,6 +125,7 @@ public class GameController {
 
     private void resolveSwap(Cell a, Cell b, StackPane paneA, StackPane paneB) {
         board.swap(a, b);
+        view.renderBoard(board, this::handleCellClick);
         MatchResolution resolution = board.resolveMatches(a, b, true);
 
         if (resolution.isEmpty()) {
@@ -233,6 +235,10 @@ public class GameController {
         view.renderBoard(board, this::handleCellClick);
 
         Map<StackPane, Integer> dropDistances = mapDropPanes(gravityDrops);
+        dropDistances.keySet().forEach(pane -> {
+            Node candy = pane.getChildren().get(0);
+            if (candy != null) candy.setOpacity(0);
+        });
         List<StackPane> spawnPanes = new ArrayList<>();
         Map<StackPane, Integer> spawnRows = new HashMap<>();
         mapSpawnPanes(newCells, spawnPanes, spawnRows);

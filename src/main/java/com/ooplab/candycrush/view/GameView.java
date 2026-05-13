@@ -16,13 +16,20 @@ import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.effect.Glow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.RadialGradient;
+import javafx.scene.paint.Stop;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -181,6 +188,9 @@ public class GameView {
             for (int c = 0; c < Board.SIZE; c++) {
                 Cell cell = board.getCell(r, c);
                 StackPane pane = createCellPane(cell);
+                pane.getChildren().stream()
+                        .filter(n -> "candy".equals(n.getUserData()))
+                        .forEach(n -> n.setOpacity(1.0));
                 pane.setOnMouseClicked(e -> onCellClick.accept(cell));
                 pane.setUserData(cell);
                 boardGrid.add(pane, c, r);
@@ -214,6 +224,7 @@ public class GameView {
             iv.setFitHeight(CELL_SIZE - 16);
             iv.setPreserveRatio(true);
             candyVisual.getChildren().add(iv);
+            candyVisual.setUserData("candy");
         } else {
             // Fallback to colored rectangle if image missing.
             Rectangle candyRect = new Rectangle(CELL_SIZE - 16, CELL_SIZE - 16);
@@ -229,29 +240,56 @@ public class GameView {
             addStripedOverlay(candyVisual, stripedCandy.getBlastDirection());
         }
 
+
         return candyVisual;
     }
 
-    private void addStripedOverlay(StackPane candyVisual, BlastDirection blastDirection) {
-        double[] offsets = {-10, 0, 10};
+    private void addStripedOverlay(StackPane candyVisual, BlastDirection dir) {
+        Circle glow = new Circle(CELL_SIZE * 0.4);
 
-        for (double offset : offsets) {
-            Rectangle stripe;
-            if (blastDirection == BlastDirection.ROW) {
-                stripe = new Rectangle(CELL_SIZE - 24, 4);
-                stripe.setTranslateY(offset);
+
+        RadialGradient auraGradient = new RadialGradient(
+                0, 0, 0.5, 0.5, 0.5, true, CycleMethod.NO_CYCLE,
+                new Stop(0, Color.rgb(255, 255, 255, 0.6)),
+                new Stop(1, Color.TRANSPARENT)
+        );
+        glow.setFill(auraGradient);
+        DropShadow outerGlow = new DropShadow();
+        outerGlow.setRadius(36);
+        outerGlow.setSpread(0.9);
+        outerGlow.setColor(Color.LIGHTGOLDENRODYELLOW);
+
+        Glow intenseGlow = new Glow(1);
+        outerGlow.setInput(intenseGlow);
+        glow.setEffect(outerGlow);
+        //Outer ring
+        Circle ring = new Circle(CELL_SIZE * 0.5);
+        ring.setFill(Color.TRANSPARENT);
+        ring.setStroke(Color.YELLOW);
+        ring.setStrokeWidth(2.5);
+        ring.setOpacity(0.9);
+        ring.setEffect(new Glow(1.0));
+
+
+        //Lines
+        Group streaks = new Group();
+        for (int i = -10; i <= 10; i += 5) {
+            Rectangle line;
+            if (dir == BlastDirection.ROW) {
+                line = new Rectangle(CELL_SIZE * 0.8, 3);
+                line.setTranslateY(i);
             } else {
-                stripe = new Rectangle(4, CELL_SIZE - 24);
-                stripe.setTranslateX(offset);
+                line = new Rectangle(3, CELL_SIZE * 0.8);
+                line.setTranslateX(i);
             }
-
-            stripe.setFill(Color.rgb(255, 255, 255, 0.82));
-            stripe.setArcWidth(4);
-            stripe.setArcHeight(4);
-            candyVisual.getChildren().add(stripe);
+            line.setFill(Color.WHITE);
+            line.setOpacity(0.3);
+            streaks.getChildren().add(line);
         }
+        candyVisual.getChildren().add(0, glow);
+        candyVisual.getChildren().add(1, ring);
+        candyVisual.getChildren().add(streaks);
     }
-
     /**
      * Highlight a selected cell. Pass {@code null} to clear the current highlight.
      */
